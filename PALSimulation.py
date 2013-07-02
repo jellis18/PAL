@@ -18,12 +18,8 @@ parser = argparse.ArgumentParser(description = 'Simulate Fake Data (Under Constr
 # options
 parser.add_argument('--h5File', dest='h5file', action='store', type=str, required=True,
                    help='Full path to hdf5 file containing PTA data')
-parser.add_argument('--parDir', dest='parDir', action='store', type=str, required=True,
-                   help='Full path to par files')
-parser.add_argument('--timDir', dest='timDir', action='store', type=str, required=True,
-                   help='Full path to tim files')
-parser.add_argument('--outDir', dest='outDir', action='store', type=str, default='./',
-                   help='Full path to output directory (default = ./)')
+parser.add_argument('--outFile', dest='outFile', action='store', type=str, required=True,
+                   help='Full path to output filename')
 parser.add_argument('--single', dest='single', action='store_true', default=True,
                    help='Add single source? (default = True)')
 parser.add_argument('--gwra', dest='gwra', action='store', type=float, default=1.0,
@@ -69,7 +65,7 @@ if args.gwredshift is not None:
     args.gwdist = PALutils.computeLuminosityDistance(args.gwredshift)
 
 # make copy of h5file TODO: maybe better way than using os.system?
-h5copy = args.h5file.split('.')[0] + '_sim.hdf5'
+h5copy = args.outFile
 print 'Saving file to {0}'.format(h5copy)
 os.system('cp {0} {1}'.format(args.h5file, h5copy))
 
@@ -98,12 +94,8 @@ for p in psr:
     p.toas -= tref
 
 # read in tim and par files
-parFile = glob.glob(args.parDir + '/*.par')
-timFile = glob.glob(args.timDir + '/*.tim')
-
-# sort
-parFile.sort()
-timFile.sort()
+parFile = [pulsargroup[key]['parFile'].value for key in pulsargroup]
+timFile = [pulsargroup[key]['timFile'].value for key in pulsargroup]
 
 # check to make sure same number of tim and par files
 if len(parFile) != len(timFile):
