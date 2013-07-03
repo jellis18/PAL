@@ -54,6 +54,8 @@ parser.add_option('--noise', dest='noise', action='store_true', default=False,
                    help='Add noise based on real data values? (default = False)')
 parser.add_option('--DM', dest='DM', action='store_true', default=False,
                    help='Add DM based on real data values? (default = False)')
+parser.add_option('--tim', dest='tim', action='store', type=str, default=None,
+                   help='Output new tim files (default = None, dont output tim files)')
 
 
 # parse arguments
@@ -239,6 +241,22 @@ if args.noise == False:
 # refit
 for p in pp:
     p.fit(iters=10)
+
+
+# write tim file if option is given
+if args.tim is not None:
+
+    # make directory if it doesn't exist
+    if not os.path.exists(args.tim):
+        try:
+            os.makedirs(args.tim)
+            print 'Making output tim file directory {0}'.format(args.tim)
+        except OSError:
+            pass
+
+    for p in pp:
+
+        p.savetim(args.tim + '/' + p.name + '_sim.tim')
 
 # write data to hdf5 file
 for ct, key in enumerate(pulsargroup):
