@@ -689,7 +689,7 @@ def createGWB(psr, Amp, gam, DM=False):
 
         if DM and len(psr) == 1:
             print 'adding DM to toas'
-                res_gw.append(f(psr[ll].toas)/((2.410*1E-16)*psr[ll].freqs**2))
+            res_gw.append(f(psr[ll].toas)/((2.410*1E-16)*psr[ll].freqs**2))
         else:
             res_gw.append(f(psr[ll].toas))
 
