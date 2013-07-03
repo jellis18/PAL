@@ -138,6 +138,70 @@ def crossPower(psr, gam=13/3):
 
     return np.array(rho), np.array(sig)
 
+########################## FIRST-CUT BAYES FACTOR ##################################
+
+# compute B_p statistic at particular frequency
+def bpStatFreq(psr, f0):
+    """ 
+    Computes the Bp-statistic by setting uniform-priors on signal-amplitude parameters
+    May lead to unphysical priors on the "physical" parameters, but intended only as first-cut
+    
+    @param psr: List of pulsar object instances
+    @param f0: Gravitational wave frequency
+
+    @return: Value of the Bp statistic evaluated at f0
+
+    """
+
+    fstat=0.
+    npsr = len(psr)
+    log_prod_detM = 1.0
+
+    # define N vectors from Ellis et al, 2012 N_i=(x|A_i) for each pulsar
+    N = np.zeros(2)
+    M = np.zeros((2, 2))
+    for ii,p in enumerate(psr):
+
+        # Define A vector
+        A = np.zeros((2, p.ntoa))
+        A[0,:] = 1./f0**(1./3.) * np.sin(2*np.pi*f0*p.toas)
+        A[1,:] = 1./f0**(1./3.) * np.cos(2*np.pi*f0*p.toas)
+
+        N = np.array([np.dot(A[0,:], np.dot(p.invCov, p.res)), \
+                      np.dot(A[1,:], np.dot(p.invCov, p.res))]) 
+        
+        # define M matrix M_ij=(A_i|A_j)
+        for jj in range(2):
+            for kk in range(2):
+                M[jj,kk] = np.dot(A[jj,:], np.dot(p.invCov, A[kk,:]))
+                
+        # take inverse of M
+        Minv = np.linalg.inv(M)
+        fstat += 0.5 * np.dot(N, np.dot(Minv, N))
+
+        #log_prod_detM += -0.5 * np.log(M[0,0]*M[1,1] - M[0,1]*M[1,0])
+        log_prod_detM += 0.5 * np.log(Minv[0,0]*Minv[1,1] - Minv[0,1]*Minv[1,0])
+        print fstat, log_prod_detM
+
+    
+    # return Bp-statistic
+    return ( log_prod_detM) + np.log(np.power(2.0*np.pi,1.0*npsr))
+
+# compute B_p statistic integrated over frequency to give crude Bayes' factor
+def bpStat(psr, flow, fhigh):
+    """ 
+    Computes the Bp-statistic by setting uniform-priors on signal-amplitude parameters
+    May lead to unphysical priors on the "physical" parameters, but intended only as first-cut
+    
+    @param psr: List of pulsar object instances
+    @param f0: Gravitational wave frequency
+
+    @return: Value of the Bp statistic integrated over frequency
+
+    """
+
+    return quad(lambda x: bpStatFreq(psr,x), 1.0*flow, 1.0*fhigh)
+
 
 #def crossPower(psr):
 #    """
