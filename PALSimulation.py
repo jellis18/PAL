@@ -188,35 +188,38 @@ if args.noise:
 
     for ct, p in enumerate(psr):
 
-        # get values from hdf5 file
-        Amp = pfile['Data']['Pulsars'][p.name]['Amp'].value
-        gam = pfile['Data']['Pulsars'][p.name]['gam'].value
-        efac = pfile['Data']['Pulsars'][p.name]['efac'].value
-        equad = pfile['Data']['Pulsars'][p.name]['equad'].value
-
         try:
             fH = pfile['Data']['Pulsars'][p.name]['fH'].value
         except KeyError:
             fH = None
 
 
-        tm = PALutils.createTimeLags(p.toas, p.toas)
+        # get values from hdf5 file
+        try:
+            Amp = pfile['Data']['Pulsars'][p.name]['Amp'].value
+            gam = pfile['Data']['Pulsars'][p.name]['gam'].value
+            efac = pfile['Data']['Pulsars'][p.name]['efac'].value
+            equad = pfile['Data']['Pulsars'][p.name]['equad'].value
+            tm = PALutils.createTimeLags(p.toas, p.toas)
 
-        red = PALutils.createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=fH)
-        white = PALutils.createWhiteNoiseCovarianceMatrix(p.err, efac, equad)
+            red = PALutils.createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=fH)
+            white = PALutils.createWhiteNoiseCovarianceMatrix(p.err, efac, equad)
 
-        cov = red + white
+            cov = red + white
 
-        # cholesky decomp
-        L = np.linalg.cholesky(cov)
+            # cholesky decomp
+            L = np.linalg.cholesky(cov)
 
-        # zero mean unit variance 
-        w = np.random.randn(p.ntoa)
+            # zero mean unit variance 
+            w = np.random.randn(p.ntoa)
 
-        # get induced residuals
-        inducedRes = np.dot(L, w)
+            # get induced residuals
+            inducedRes = np.dot(L, w)
 
-        pp[ct].stoas[:] += np.longdouble(inducedRes/86400)
+            pp[ct].stoas[:] += np.longdouble(inducedRes/86400)
+
+        except KeyError:
+            print 'No noise values for pulsar {0}'.format(p.name)
 
 # no options, just white noise
 if args.noise == False:
