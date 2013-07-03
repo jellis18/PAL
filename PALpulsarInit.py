@@ -216,6 +216,8 @@ class PulsarFile(object):
             # default parameters for different models other than pure PL
             fH = None
             tau = None
+	    DMAmp = None
+ 	    DMgam = None
             
             # get amplitude
             if "Amp" in line:
@@ -240,6 +242,15 @@ class PulsarFile(object):
             # get correlation time scale if available
             elif "tau" in line:
                 tau = float(line.split()[-1])
+
+            # get DM Amplitude if available
+            elif "DMAmp" in line:
+                DMAmp = float(line.split()[-1])
+
+            # get DM Spectral Index if available
+            elif "DMgam" in line:
+                DMgam = float(line.split()[-1])
+
 
         # construct red and white noise covariance matrices
         red = pal_utils.createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=fH)
@@ -267,6 +278,11 @@ class PulsarFile(object):
             pulsarsgroup.create_dataset('fH', data = fH)
         if tau is not None:
             pulsarsgroup.create_dataset('tau', data = tau)
+        if DMAmp is not None:
+            pulsarsgroup.create_dataset('DMAmp', data = DMAmp)
+        if DMgam is not None:
+            pulsarsgroup.create_dataset('DMgam', data = DMgam)
+
 
         # Close the hdf5 file
         self.h5file.close()

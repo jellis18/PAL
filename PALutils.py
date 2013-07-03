@@ -4,7 +4,7 @@ import scipy.special as ss
 import scipy.linalg as sl
 import scipy.integrate as si
 import scipy.interpolate as interp
-import numexpr as ne
+#import numexpr as ne
 import sys,os
 
 def createAntennaPatternFuncs(psr, gwtheta, gwphi):
@@ -256,7 +256,7 @@ def sumTermCovarianceMatrix_fast(tm, fL, gam):
 
 
 
-def createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=None, fast=True):
+def createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=None, fast=False):
     """
     Create red noise covariance matrix. If fH is None, then
     return standard power law covariance matrix. If fH is not
@@ -587,7 +587,7 @@ def createfourierdesignmatrix(t, nmodes):
 
     return F
 
-def createGWB(psr, Amp, gam):
+def createGWB(psr, Amp, gam, DM=False):
     """
 		Function to create GW incuced residuals from a stochastic GWB as defined
 		in Chamberlin, Creighton, Demorest et al. (2013)
@@ -685,7 +685,10 @@ def createGWB(psr, Amp, gam):
     for ll in range(Npulsars):
         Res[ll,:] = Res_t[ll, 100:(npts+100)]
         f = interp.interp1d(ut, Res[ll,:], kind='linear')
-        res_gw.append(f(psr[ll].toas))
+	if DM and len(psr)==1:
+            res_gw.append(f(psr[ll].toas)/((2.410*1E-16)*psr[ll].freqs**2))
+	else:
+	    res_gw.append(f(psr[ll].toas))
 
     return res_gw
 

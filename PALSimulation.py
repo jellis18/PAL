@@ -52,6 +52,9 @@ parser.add_option('--gwbIndex', dest='gwbIndex', action='store', type=float, def
                    help='GWB amplitude (default = 4.33)')
 parser.add_option('--noise', dest='noise', action='store_true', default=False,
                    help='Add noise based on real data values? (default = False)')
+parser.add_option('--DM', dest='DM', action='store_true', default=False,
+                   help='Add DM based on real data values? (default = False)')
+
 
 # parse arguments
 (args, x) = parser.parse_args()
@@ -159,6 +162,24 @@ if args.gwb:
     # add to site arrival times of pulsar
     for ct, p in enumerate(pp):
         p.stoas[:] += np.longdouble(inducedRes[ct]/86400)
+
+
+if args.DM:
+
+    print 'Simulating DM using values in hdf5 file'
+
+    for ct, p in enumerate(psr):
+
+        # get values from hdf5 file
+	try:
+            DMAmp = pfile['Data']['Pulsars'][p.name]['DMAmp'].value
+            DMgam = pfile['Data']['Pulsars'][p.name]['DMgam'].value
+            inducedRes = PALutils.createGWB([psr[ct]], DMAmp, DMgam, True)
+            # add to site arrival times of pulsar
+            pp[ct].stoas[:] += np.longdouble(inducedRes[ct]/86400)
+	except KeyError:
+	    print 'No DM in the file'
+
 
 # add noise based on values in hdf5 file
 if args.noise:
