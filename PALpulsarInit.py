@@ -216,8 +216,8 @@ class PulsarFile(object):
             # default parameters for different models other than pure PL
             fH = None
             tau = None
-	    DMAmp = None
- 	    DMgam = None
+	        DMAmp = None
+ 	        DMgam = None
             
             # get amplitude
             if "Amp" in line:
@@ -504,6 +504,7 @@ def createPulsarHDF5File(parDir, timDir, noiseDir=None, distFile=None, \
                 index.append(ct)
             else:
                 for ii in range(len(parFile)):
+
                     # get prefix of pulsar name from par file
                     prefix = parFile[ct].split('/')[-1].split('.')[0].split('_')[0][0]
                     if prefix == 'J' or prefix =='B':
