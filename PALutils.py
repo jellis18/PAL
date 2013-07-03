@@ -599,7 +599,7 @@ def createGWB(psr, Amp, gam, DM=False):
 		@return: Vector of induced residuals
 		
 		"""
-	
+    print 'in createGWB', Amp, gam, DM	
     # get maximum number of points
     npts = np.max([p.ntoa for p in psr])
 
@@ -654,7 +654,7 @@ def createGWB(psr, Amp, gam, DM=False):
 
     # calculate GW amplitude Omega 
     Omega=Omega_beta*f**(beta_f)
-
+    print f
     # Calculate frequency dependent pre-factor C(f)
     # could rewrite in terms of A instead of Omega for convenience.
     C=H0**2./(16.*np.pi**2)/(2.*np.pi)**2 * f**(-5.) * Omega * (dur * howml)
@@ -686,6 +686,7 @@ def createGWB(psr, Amp, gam, DM=False):
         Res[ll,:] = Res_t[ll, 100:(npts+100)]
         f = interp.interp1d(ut, Res[ll,:], kind='linear')
 	if DM and len(psr)==1:
+	    print 'adding DM to toas'
             res_gw.append(f(psr[ll].toas)/((2.410*1E-16)*psr[ll].freqs**2))
 	else:
 	    res_gw.append(f(psr[ll].toas))

@@ -210,49 +210,50 @@ class PulsarFile(object):
 
         # now read noise file to get model and parameters
         file = open(noisefile,'r')
-        
-        for line in file.readlines():
 
-            # default parameters for different models other than pure PL
-            fH = None
-            tau = None
-	        DMAmp = None
- 	        DMgam = None
+        fH = None
+        tau = None
+        DMAmp = None
+        DMgam = None
+ 
+        for line in file.readlines():
             
+            # default parameters for different models other than pure PL
+            key = line.split()[0]
+
             # get amplitude
-            if "Amp" in line:
+            if "Amp" == key:
                 Amp = float(line.split()[-1])
 
             # get spectral index
-            elif "gam" in line:
+            elif "gam" == key:
                 gam = float(line.split()[-1])
             
             # get efac
-            elif "efac" in line:
+            elif "efac" == key:
                 efac = float(line.split()[-1])
             
             # get quad
-            elif "equad" in line:
+            elif "equad" == key:
                 equad = float(line.split()[-1])
             
             # get high frequency cutoff if available
-            elif "fH" in line:
+            elif "fH" == key:
                 fH = float(line.split()[-1])
             
             # get correlation time scale if available
-            elif "tau" in line:
+            elif "tau" == key:
                 tau = float(line.split()[-1])
 
             # get DM Amplitude if available
-            elif "DMAmp" in line:
+            elif "DMAmp" == key:
                 DMAmp = float(line.split()[-1])
 
             # get DM Spectral Index if available
-            elif "DMgam" in line:
+            elif "DMgam" == key:
                 DMgam = float(line.split()[-1])
 
-
-        # construct red and white noise covariance matrices
+        # cosstruct red and white noise covariance matrices
         red = pal_utils.createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=fH)
         white = pal_utils.createWhiteNoiseCovarianceMatrix(errs, efac, equad, tau=tau)
 
