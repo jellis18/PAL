@@ -20,8 +20,8 @@ parser.add_argument('--h5File', dest='h5file', action='store', type=str, require
                    help='Full path to hdf5 file containing PTA data')
 parser.add_argument('--outFile', dest='outFile', action='store', type=str, required=True,
                    help='Full path to output filename')
-parser.add_argument('--single', dest='single', action='store_true', default=True,
-                   help='Add single source? (default = True)')
+parser.add_argument('--single', dest='single', action='store_true', default=False,
+                   help='Add single source? (default = False)')
 parser.add_argument('--gwra', dest='gwra', action='store', type=float, default=1.0,
                    help='GW Right Ascension (default = 1.0 radian)')
 parser.add_argument('--gwdec', dest='gwdec', action='store', type=float, default=0.5,
@@ -44,14 +44,14 @@ parser.add_argument('--gwredshift', dest='gwredshift', action='store', type=floa
                    help='GW redshift of source (default = None)')
 parser.add_argument('--gwfreq', dest='gwfreq', action='store', type=float, default=1e-8,
                    help='GW initial frequency (default = 1e-8 Hz)')
-parser.add_argument('--gwb', dest='gwb', action='store_true', default=True,
-                   help='Add stochastic background? (default = True)')
+parser.add_argument('--gwb', dest='gwb', action='store_true', default=False,
+                   help='Add stochastic background? (default = False)')
 parser.add_argument('--gwbAmp', dest='gwbAmp', action='store', type=float, default=5e-15,
                    help='GWB amplitude (default = 5e-15)')
 parser.add_argument('--gwbIndex', dest='gwbIndex', action='store', type=float, default=4.33,
                    help='GWB amplitude (default = 4.33)')
 parser.add_argument('--noise', dest='noise', action='store_true', default=False,
-                   help='Add noise based on real data values? (default = True)')
+                   help='Add noise based on real data values? (default = False)')
 
 # parse arguments
 args = parser.parse_args()
@@ -200,10 +200,16 @@ if args.noise:
 # no options, just white noise
 if args.noise == False:
 
-    print 'No injection, just using white noise based on error bars'
+    print 'Using only white noise based on error bars'
     # add to site arrival times of pulsar
-    for p in pp:
+    for ct,p in enumerate(pp):
         p.stoas[:] += p.toaerrs*1e-6 * np.random.randn(p.nobs)/86400
+
+        # add correct "inverse covariance matrix" to hdf5 file
+        white = PALutils.createWhiteNoiseCovarianceMatrix(p.toaerrs*1e-6, 1, 0)
+        tmp = np.dot(psr[ct].G.T, np.dot(white, psr[ct].G))
+        invCov = np.dot(psr[ct].G, np.dot(np.linalg.inv(tmp), psr[ct].G.T))
+        pulsargroup[psr[ct].name]['invCov'][...] = invCov
 
 
 # refit

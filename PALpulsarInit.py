@@ -326,8 +326,11 @@ class PulsarFile(object):
             pulsarsgroup.create_dataset('dist', data=dist)
             pulsarsgroup.create_dataset('distErr', data=distErr)
         else:
-            raise IOError, "Cannot find PSR {0} in distance file {1}".format(t2pulsar.name, distfile)
-
+            print "Cannot find PSR {0} in distance file {1}. Using dist = 1kpc with 10% uncertainty".format(t2pulsar.name, distfile)
+            
+            pulsarsgroup.create_dataset('dist', data=1.0)
+            pulsarsgroup.create_dataset('distErr', data=0.1)
+            
         self.h5file.close()
         dfile.close()
 
@@ -343,7 +346,7 @@ class pulsar(object):
     
     """
 
-    def __init__(self,pulsargroup, addNoise=False, addGmatrix=False):
+    def __init__(self,pulsargroup, addNoise=False, addGmatrix=True):
 
 
         # loop though keys in pulsargroup and fill in psr attributes that are needed for GW analysis
