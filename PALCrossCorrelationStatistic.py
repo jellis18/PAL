@@ -8,24 +8,24 @@ import PALLikelihoods
 import PALutils
 import PALpulsarInit
 import h5py as h5
-import argparse
+import optparse
 import scipy.special as ss
 import os
 
-parser = argparse.ArgumentParser(description = 'Run the Cross Correlation statistic defined in \
+parser = optparse.OptionParser(description = 'Run the Cross Correlation statistic defined in \
                                                 Demorest et al. (2012)')
 
 # options
-parser.add_argument('--h5File', dest='h5file', action='store', type=str, required=True,
+parser.add_option('--h5File', dest='h5file', action='store', type=str,
                    help='Full path to hdf5 file containing PTA data')
-parser.add_argument('--outDir', dest='outDir', action='store', type=str, default='./',
+parser.add_option('--outDir', dest='outDir', action='store', type=str, default='./',
                    help='Full path to output directory (default = ./)')
-parser.add_argument('--spectralIndex', dest='gam', action='store', type=float, default=4.3333,
+parser.add_option('--spectralIndex', dest='gam', action='store', type=float, default=4.3333,
                    help='Power spectral index of stochastic background (default = 4.3333 (SMBHBs))')
 
 
 # parse arguments
-args = parser.parse_args()
+(args, x) = parser.parse_args()
 
 ##### Begin Code #####
 

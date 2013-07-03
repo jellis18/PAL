@@ -10,51 +10,51 @@ import libstempo as t2
 import PALutils
 import PALpulsarInit
 import h5py as h5
-import argparse
+import optparse 
 import os, glob
 
-parser = argparse.ArgumentParser(description = 'Simulate Fake Data (Under Construction)')
+parser = optparse.OptionParser(description = 'Simulate Fake Data (Under Construction)')
 
 # options
-parser.add_argument('--h5File', dest='h5file', action='store', type=str, required=True,
+parser.add_option('--h5File', dest='h5file', action='store', type=str,
                    help='Full path to hdf5 file containing PTA data')
-parser.add_argument('--outFile', dest='outFile', action='store', type=str, required=True,
+parser.add_option('--outFile', dest='outFile', action='store', type=str,
                    help='Full path to output filename')
-parser.add_argument('--single', dest='single', action='store_true', default=False,
+parser.add_option('--single', dest='single', action='store_true', default=False,
                    help='Add single source? (default = False)')
-parser.add_argument('--gwra', dest='gwra', action='store', type=float, default=1.0,
+parser.add_option('--gwra', dest='gwra', action='store', type=float, default=1.0,
                    help='GW Right Ascension (default = 1.0 radian)')
-parser.add_argument('--gwdec', dest='gwdec', action='store', type=float, default=0.5,
+parser.add_option('--gwdec', dest='gwdec', action='store', type=float, default=0.5,
                    help='GW Declination (default = 0.5 radian)')
-parser.add_argument('--gwinc', dest='gwinc', action='store', type=float, default=0.5,
+parser.add_option('--gwinc', dest='gwinc', action='store', type=float, default=0.5,
                    help='GW inclination angle (default = 0.5 radian)')
-parser.add_argument('--gwphase', dest='gwphase', action='store', type=float, default=0.5,
+parser.add_option('--gwphase', dest='gwphase', action='store', type=float, default=0.5,
                    help='GW initial phase (default = 0.5 radian)')
-parser.add_argument('--gwpolarization', dest='gwpolarization', action='store', type=float, default=0.5,
+parser.add_option('--gwpolarization', dest='gwpolarization', action='store', type=float, default=0.5,
                    help='GW polarization angle (default = 0.5 radian)')
-parser.add_argument('--gwchirpmass', dest='gwchirpmass', action='store', type=float, default=5e8,
+parser.add_option('--gwchirpmass', dest='gwchirpmass', action='store', type=float, default=5e8,
                    help='GW chirp mass (default = 5e8 Solar Masses)')
-parser.add_argument('--gwmass1', dest='gwmass1', action='store', type=float, default=None,
+parser.add_option('--gwmass1', dest='gwmass1', action='store', type=float, default=None,
                    help='GW SMBMB mass 1 (default = None)')
-parser.add_argument('--gwmass2', dest='gwmass2', action='store', type=float, default=None,
+parser.add_option('--gwmass2', dest='gwmass2', action='store', type=float, default=None,
                    help='GW SMBMB mass 2 (default = None)')
-parser.add_argument('--gwdist', dest='gwdist', action='store', type=float, default=100,
+parser.add_option('--gwdist', dest='gwdist', action='store', type=float, default=100,
                    help='GW luminosity distance (default = 100 Mpc)')
-parser.add_argument('--gwredshift', dest='gwredshift', action='store', type=float, default=None,
+parser.add_option('--gwredshift', dest='gwredshift', action='store', type=float, default=None,
                    help='GW redshift of source (default = None)')
-parser.add_argument('--gwfreq', dest='gwfreq', action='store', type=float, default=1e-8,
+parser.add_option('--gwfreq', dest='gwfreq', action='store', type=float, default=1e-8,
                    help='GW initial frequency (default = 1e-8 Hz)')
-parser.add_argument('--gwb', dest='gwb', action='store_true', default=False,
+parser.add_option('--gwb', dest='gwb', action='store_true', default=False,
                    help='Add stochastic background? (default = False)')
-parser.add_argument('--gwbAmp', dest='gwbAmp', action='store', type=float, default=5e-15,
+parser.add_option('--gwbAmp', dest='gwbAmp', action='store', type=float, default=5e-15,
                    help='GWB amplitude (default = 5e-15)')
-parser.add_argument('--gwbIndex', dest='gwbIndex', action='store', type=float, default=4.33,
+parser.add_option('--gwbIndex', dest='gwbIndex', action='store', type=float, default=4.33,
                    help='GWB amplitude (default = 4.33)')
-parser.add_argument('--noise', dest='noise', action='store_true', default=False,
+parser.add_option('--noise', dest='noise', action='store_true', default=False,
                    help='Add noise based on real data values? (default = False)')
 
 # parse arguments
-args = parser.parse_args()
+(args, x) = parser.parse_args()
 
 # compute chirp mass if mass m1 and m2 are given
 if args.gwmass1 is not None and args.gwmass2 is not None:

@@ -8,32 +8,32 @@ import PALLikelihoods
 import PALutils
 import PALpulsarInit
 import h5py as h5
-import argparse
+import optparse
 import os
 
-parser = argparse.ArgumentParser(description = 'Run F-statistic search as defined in Ellis, Siemens, Creighton (2012)')
+parser = optparse.OptionParser(description = 'Run F-statistic search as defined in Ellis, Siemens, Creighton (2012)')
 
 # options
-parser.add_argument('--h5File', dest='h5file', action='store', type=str, required=True,
+parser.add_option('--h5File', dest='h5file', action='store', type=str,
                    help='Full path to hdf5 file containing PTA data')
-parser.add_argument('--outDir', dest='outDir', action='store', type=str, default='./',
+parser.add_option('--outDir', dest='outDir', action='store', type=str, default='./',
                    help='Full path to output directory (default = ./)')
-parser.add_argument('--runFpStat', dest='fpFlag', action='store_true', default=True,
+parser.add_option('--runFpStat', dest='fpFlag', action='store_true', default=True,
                    help='Option to run Incoherent Fp Statistic (default = True)')
-parser.add_argument('--runFeStat', dest='feFlag', action='store_true', default=False,
+parser.add_option('--runFeStat', dest='feFlag', action='store_true', default=False,
                    help='Option to run Earth term Fe Statistic (default = False)')
-parser.add_argument('--fhigh', dest='fhigh', action='store', type=float, default=5e-7,
+parser.add_option('--fhigh', dest='fhigh', action='store', type=float, default=5e-7,
                    help='Highest frequency to search (default = 5e-7 Hz)')
-parser.add_argument('--nfreqs', dest='nfreqs', action='store', type=int, default=200,
+parser.add_option('--nfreqs', dest='nfreqs', action='store', type=int, default=200,
                    help='Number of frequencies to search (default = 200)')
-parser.add_argument('--logsample', dest='logsample', action='store_true', default=False,
+parser.add_option('--logsample', dest='logsample', action='store_true', default=False,
                    help='Sample in log frequency (default = False)')
-parser.add_argument('--best', dest='best', action='store', type=int, default=0,
+parser.add_option('--best', dest='best', action='store', type=int, default=0,
                    help='Only use best pulsars based on weighted rms (default = 0, use all)')
 
 
 # parse arguments
-args = parser.parse_args()
+(args, x) = parser.parse_args()
 
 ##### Begin Code #####
 

@@ -540,23 +540,23 @@ def createPulsarHDF5File(parDir, timDir, noiseDir=None, distFile=None, \
 
     # done
 if __name__ == '__main__':
-    import argparse
-    parser = argparse.ArgumentParser()
+    import optparse
+    parser = optparse.OptionParser()
 
-    parser.add_argument('--parDir', dest='parDir', action='store', type=str, required=True,
+    parser.add_option('--parDir', dest='parDir', action='store', type=str,
                        help='Full path to par files (required)', default = './')
-    parser.add_argument('--timDir', dest='timDir', action='store', type=str, required=True,
+    parser.add_option('--timDir', dest='timDir', action='store', type=str, 
                        help='Full path to tim files (required)', default='./')
-    parser.add_argument('--noiseDir', dest='noiseDir', action='store', type=str, default=None,
+    parser.add_option('--noiseDir', dest='noiseDir', action='store', type=str, default=None,
                        help='Full path to noise files')
-    parser.add_argument('--outFile', dest='outFile', action='store', type=str, required=True,
+    parser.add_option('--outFile', dest='outFile', action='store', type=str, 
                        help='Full path to output filename (required)')
-    parser.add_argument('--distFile', dest='distFile', action='store', type=str, default=None,
+    parser.add_option('--distFile', dest='distFile', action='store', type=str, default=None,
                        help='Full path to pulsar distance file')
-    parser.add_argument('--DMOFF', dest='DMOFF', action='store', type=str, default=None,
+    parser.add_option('--DMOFF', dest='DMOFF', action='store', type=str, default=None,
                        help='Turn on DMMODEL fitting')
 
-    args = parser.parse_args()
+    (args, x) = parser.parse_args()
 
     createPulsarHDF5File(args.parDir, args.timDir, args.noiseDir, args.distFile, \
                              args.outFile, args.DMOFF, dailyAverage=False)
