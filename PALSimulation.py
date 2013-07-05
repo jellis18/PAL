@@ -172,17 +172,17 @@ if args.DM:
 
     for ct, p in enumerate(psr):
 
-    # get values from hdf5 file
-	try:
-        DMAmp = pfile['Data']['Pulsars'][p.name]['DMAmp'].value
-        DMgam = pfile['Data']['Pulsars'][p.name]['DMgam'].value
-        inducedRes = PALutils.createGWB([psr[ct]], DMAmp, DMgam, True)
+        # get values from hdf5 file
+        try:
+            DMAmp = pfile['Data']['Pulsars'][p.name]['DMAmp'].value
+            DMgam = pfile['Data']['Pulsars'][p.name]['DMgam'].value
+            inducedRes = np.squeeze(np.array(PALutils.createGWB([p], DMAmp, DMgam, True)))
 
-        # add to site arrival times of pulsar
-        pp[ct].stoas[:] += np.longdouble(inducedRes[ct]/86400)
+            # add to site arrival times of pulsar
+            pp[ct].stoas[:] += np.longdouble(inducedRes/86400)
 
-	except KeyError:
-	    print 'No DM values for pulsar {0}'.format(p.name)
+        except KeyError:
+            print 'No DM values for pulsar {0}'.format(p.name)
 
 
 # add noise based on values in hdf5 file
