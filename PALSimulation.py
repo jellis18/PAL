@@ -256,9 +256,10 @@ if args.tim is not None:
         except OSError:
             pass
 
-    for p in pp:
+    for ct,p in enumerate(pp):
 
-        p.savetim(args.tim + '/' + p.name + '_sim.tim')
+        pname = timFile.split('/')[-1].split('.')[0]
+        p.savetim(args.tim + '/' + pname + '_sim.tim')
 
 #TODO: add this for all injected sources
 
