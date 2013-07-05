@@ -589,17 +589,18 @@ def createfourierdesignmatrix(t, nmodes):
 
 def createGWB(psr, Amp, gam, DM=False):
     """
-		Function to create GW incuced residuals from a stochastic GWB as defined
-		in Chamberlin, Creighton, Demorest et al. (2013)
-		
-		@param psr: pulsar object for single pulsar
-		@param Amp: Amplitude of red noise in GW units
-		@param gam: Red noise power law spectral index
-		
-		@return: Vector of induced residuals
-		
-		"""
-    print 'in createGWB', Amp, gam, DM	
+    Function to create GW incuced residuals from a stochastic GWB as defined
+    in Chamberlin, Creighton, Demorest et al. (2013)
+    
+    @param psr: pulsar object for single pulsar
+    @param Amp: Amplitude of red noise in GW units
+    @param gam: Red noise power law spectral index
+    @param DM: Add time varying DM as a power law (only valid for single pulsars)
+    
+    @return: Vector of induced residuals
+    
+    """
+
     # get maximum number of points
     npts = np.max([p.ntoa for p in psr])
 

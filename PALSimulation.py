@@ -165,22 +165,24 @@ if args.gwb:
     for ct, p in enumerate(pp):
         p.stoas[:] += np.longdouble(inducedRes[ct]/86400)
 
-
+# add DM variations
 if args.DM:
 
     print 'Simulating DM using values in hdf5 file'
 
     for ct, p in enumerate(psr):
 
-        # get values from hdf5 file
+    # get values from hdf5 file
 	try:
-            DMAmp = pfile['Data']['Pulsars'][p.name]['DMAmp'].value
-            DMgam = pfile['Data']['Pulsars'][p.name]['DMgam'].value
-            inducedRes = PALutils.createGWB([psr[ct]], DMAmp, DMgam, True)
-            # add to site arrival times of pulsar
-            pp[ct].stoas[:] += np.longdouble(inducedRes[ct]/86400)
+        DMAmp = pfile['Data']['Pulsars'][p.name]['DMAmp'].value
+        DMgam = pfile['Data']['Pulsars'][p.name]['DMgam'].value
+        inducedRes = PALutils.createGWB([psr[ct]], DMAmp, DMgam, True)
+
+        # add to site arrival times of pulsar
+        pp[ct].stoas[:] += np.longdouble(inducedRes[ct]/86400)
+
 	except KeyError:
-	    print 'No DM in the file'
+	    print 'No DM values for pulsar {0}'.format(p.name)
 
 
 # add noise based on values in hdf5 file
@@ -257,6 +259,8 @@ if args.tim is not None:
     for p in pp:
 
         p.savetim(args.tim + '/' + p.name + '_sim.tim')
+
+#TODO: add this for all injected sources
 
 # write data to hdf5 file
 for ct, key in enumerate(pulsargroup):
