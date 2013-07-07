@@ -256,7 +256,7 @@ def sumTermCovarianceMatrix_fast(tm, fL, gam):
 
 
 
-def createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=None, fast=False):
+def createRedNoiseCovarianceMatrix(tmcopy, Amp, gam, fH=None, fast=False):
     """
     Create red noise covariance matrix. If fH is None, then
     return standard power law covariance matrix. If fH is not
@@ -278,6 +278,7 @@ def createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=None, fast=False):
     s2yr = 1/3.16e7
     
     # convert tm to yr
+    tm = tmcopy.copy()
     tm *= s2yr
 
     # compute high frequency cutoff
@@ -515,7 +516,7 @@ def computeORFMatrix(psr):
     return ORF
 
 
-def twoComponentNoiseLike(Amp, D, c):
+def twoComponentNoiseLike(Amp, D, c, b=1):
     """
 
     Likelihood function for two component noise model
@@ -524,12 +525,13 @@ def twoComponentNoiseLike(Amp, D, c):
     @param D: Vector of eigenvalues from diagonalized red noise
               covariance matrix
     @param c: Residuals written new diagonalized basis
+    @param b: constant factor multiplying B matrix in total covariance C = aA + bB
 
     @return: loglike: The log-likelihood for this pulsar
 
     """
 
-    loglike = -0.5 * np.sum(np.log(2*np.pi*(Amp**2*D + 1)) + c**2/(Amp**2*D + 1))
+    loglike = -0.5 * np.sum(np.log(2*np.pi*(Amp**2*D + 1)) + c**2/(Amp**2*D + 1)) 
 
     return loglike
 
@@ -632,6 +634,7 @@ def createGWB(psr, Amp, gam, DM=False):
 
     # define frequencies spanning from DC to Nyquist. This is a vector spanning these frequencies in increments of 1/(dur*howml).
     f=np.arange(0, 1./(2.*dt), 1./(dur*howml))
+    f[0] = f[1] # avoid divide by 0 warning
 
     Nf=len(f)
 
@@ -640,7 +643,7 @@ def createGWB(psr, Amp, gam, DM=False):
 
     # Create random frequency series from zero mean, unit variance, Gaussian distributions
     w = np.zeros((Npulsars, Nf), complex)
-    for ll in np.arange(Npulsars):
+    for ll in range(Npulsars):
         w[ll,:] = np.random.randn(Nf) + 1j*np.random.randn(Nf)
 
     # Calculate strain spectral index alpha, beta
@@ -655,14 +658,14 @@ def createGWB(psr, Amp, gam, DM=False):
 
     # calculate GW amplitude Omega 
     Omega=Omega_beta*f**(beta_f)
-    print f
+
     # Calculate frequency dependent pre-factor C(f)
     # could rewrite in terms of A instead of Omega for convenience.
     C=H0**2./(16.*np.pi**2)/(2.*np.pi)**2 * f**(-5.) * Omega * (dur * howml)
 
     ### injection residuals in the frequency domain
     Res_f=np.dot(M,w)
-    for ll in np.arange(Npulsars):
+    for ll in range(Npulsars):
         Res_f[ll] = Res_f[ll] * C**(0.5)    #rescale by frequency dependent factor
         Res_f[ll,0] = 0						#set DC bin to zero to avoid infinities
         Res_f[ll,-1] = 0					#set Nyquist bin to zero also
@@ -670,10 +673,14 @@ def createGWB(psr, Amp, gam, DM=False):
     # Now fill in bins after Nyquist (for fft data packing) and take inverse FT
     Res_f2 = np.zeros((Npulsars, 2*Nf-2), complex)    # make larger array for residuals
     Res_t =  np.zeros((Npulsars, 2*Nf-2))
-    for ll in np.arange(Npulsars):
-        for kk in np.arange(Nf):					# copies values into the new array up to Nyquist        
+    #Res_f2[:,0:Nf] = Res_f[:,0:Nf]
+    #Res_f2[:, Nf:(Nf-2)] = np.conj(np.flipud(Res_f)[:,Nf:(Nf-2)])
+    #Res_t = np.real(np.fft.ifft(Res_f2)/dt)
+    for ll in range(Npulsars):
+        for kk in range(Nf):					# copies values into the new array up to Nyquist        
             Res_f2[ll,kk] = Res_f[ll,kk]
-        for jj in np.arange(Nf-2):					# pads the values bigger than Nyquist with frequencies back down to 1. Biggest possible index of this array is 2*Nf-3.
+
+        for jj in range(Nf-2):					# pads the values bigger than Nyquist with frequencies back down to 1. Biggest possible index of this array is 2*Nf-3.
             Res_f2[ll,Nf+jj] = np.conj(Res_f[ll,(Nf-2)-jj])
 
         ## rows: each row corresponds to a pulsar

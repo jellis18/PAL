@@ -258,7 +258,7 @@ if args.tim is not None:
 
     for ct,p in enumerate(pp):
 
-        pname = timFile.split('/')[-1].split('.')[0]
+        pname = timFile[ct].split('/')[-1].split('.')[0]
         p.savetim(args.tim + '/' + pname + '_sim.tim')
 
 #TODO: add this for all injected sources
