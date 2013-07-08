@@ -146,17 +146,26 @@ def computeLuminosityDistance(z):
     # proper distance function
     properDistance = lambda z: c/H0*np.sqrt(Ol+Om*(1+z)**3)
     
-    #def properDistance(z):
-    #    
-    #    Ez = np.sqrt(Ol+Om*(1+z)**3)
-    #    
-    #    return c/H0/Ez
-
     # carry out numerical integration
     Dp = si.quadrature(properDistance, 0 ,z)[0]
     Dl = (1+z) * Dp
 
     return Dl
+
+def calculateMatchedFilterSNR(psr, data, temp):
+    """
+
+    Compute the SNR from a single continuous source for a single puslar
+
+    @param psr: Pulsar class containing all info on pulsar
+    @param data: The residual data (or the template if we want to optimal SNR)
+    @param temp: The template model of the signal
+
+    @return: SNR
+
+    """
+
+    return np.dot(data, np.dot(psr.invCov, temp))/np.sqrt(np.dot(temp, np.dot(psr.invCov, temp)))
 
 def createRmatrix(designmatrix, err):
     """

@@ -44,6 +44,8 @@ parser.add_option('--gwredshift', dest='gwredshift', action='store', type=float,
                    help='GW redshift of source (default = None)')
 parser.add_option('--gwfreq', dest='gwfreq', action='store', type=float, default=1e-8,
                    help='GW initial frequency (default = 1e-8 Hz)')
+parser.add_option('--snr', dest='snr', action='store', type=float, default=None,
+                   help='Single source SNR (default = None, use input GW distnace)')
 parser.add_option('--gwb', dest='gwb', action='store_true', default=False,
                    help='Add stochastic background? (default = False)')
 parser.add_option('--gwbAmp', dest='gwbAmp', action='store', type=float, default=5e-15,
@@ -145,11 +147,35 @@ if args.single:
 
     print 'Simulating single source'
 
+    if args.snr is not None:
+          
+        print 'Scaling distance to give SNR = {0}'.format(args.snr)
+        
+        snr2 = 0
+        args.dist = 1
+        for ct, p in enumerate(pp):
+
+            inducedRes = (PALutils.createResiduals(psr[ct], np.pi/2-args.gwdec, args.gwra, \
+                            args.gwchirpmass, args.gwdist, args.gwfreq, args.gwphase, \
+                            args.gwpolarization, args.gwinc))
+
+            # compute snr
+            snr2 += PALutils.calculateMatchedFilterSNR(psr[ct], inducedRes, inducedRes)**2
+
+        # get total snr
+        snr = np.sqrt(snr2)
+
+        # scale distance appropiately
+        args.dist = snr/args.snr
+
+        print 'Scaled GW distance = {0} for SNR = {1}'.format(args.dist, args.snr)
+    
+    # make residuals
     for ct, p in enumerate(pp):
 
-        inducedRes = (PALutils.createResiduals(psr[ct], np.pi/2-args.gwdec, args.gwra, args.gwchirpmass, \
-                                args.gwdist, args.gwfreq, args.gwphase, args.gwpolarization, \
-                                args.gwinc))
+        inducedRes = (PALutils.createResiduals(psr[ct], np.pi/2-args.gwdec, args.gwra, \
+                        args.gwchirpmass, args.gwdist, args.gwfreq, args.gwphase, \
+                        args.gwpolarization, args.gwinc))
 
         # add to site arrival times of pulsar
         p.stoas[:] += np.longdouble(inducedRes/86400)
