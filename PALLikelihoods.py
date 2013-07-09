@@ -315,14 +315,21 @@ def firstOrderLikelihood(psr, ORF, Agw, gamgw, Ared, gred, efac, equad, \
 
     return loglike
 
-def lentatiMarginalizedLike(psr, d, FNF, dtNdt, logdet_N, rho, efac):
+
+
+def lentatiMarginalizedLike(psr, F, s, rho, efac, equad):
     """
-    Lentati marginalized likelihood function
+    Lentati marginalized likelihood function only including efac and equad
 
     """
 
-    W = 1/efac
+    # compute d
+    d = np.dot(F.T, psr.res/(efac*s + equad**2))
 
+    # compute Sigma
+    N = 1/(efac*s + equad**2)
+    right = (N*F.T).T
+    FNF = np.dot(F.T, right)
 
     arr = np.zeros(2*len(rho))
     ct = 0
@@ -332,7 +339,7 @@ def lentatiMarginalizedLike(psr, d, FNF, dtNdt, logdet_N, rho, efac):
         ct += 1
 
     Phi = np.diag(10**arr)
-    Sigma = W*FNF + np.diag(1/10**arr)
+    Sigma = FNF + np.diag(1/10**arr)
 
     cf = sl.cho_factor(Sigma)
     expval2 = sl.cho_solve(cf, d)
@@ -340,13 +347,16 @@ def lentatiMarginalizedLike(psr, d, FNF, dtNdt, logdet_N, rho, efac):
 
     logdet_Phi = np.sum(np.log(10**arr))
 
-    n = psr.G.shape[1]
+    logdet_N = np.sum(np.log(efac*s + equad**2))
 
-    logLike = -0.5 * (logdet_N + logdet_Phi + logdet_Sigma + n*np.log(efac))\
-                    - 0.5 * (W*dtNdt - W**2*np.dot(d, expval2))
+    dtNdt = np.sum(psr.res**2/(efac*s + equad**2))
+
+    logLike = -0.5 * (logdet_N + logdet_Phi + logdet_Sigma)\
+                    - 0.5 * (dtNdt - np.dot(d, expval2))
 
     #print logdet_Sigma, logdet_Phi, W**2*np.dot(d, expval2)
   
 
     return logLike
+
 
