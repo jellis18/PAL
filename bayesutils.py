@@ -300,7 +300,7 @@ def plotSkyMap(raSample, decSample, nside=64, contours=None, colorbar=True, \
     Plot Skymap of chain samples on Mollwiede projection.
 
     @param raSample: Array of right ascension samples
-    @param decSample: Array of declination ascension samples
+    @param decSample: Array of declination  samples
     @param nside: Number of pixels across equator [default = 64]
     @param contours: Confidence contours to draw eg. 68%, 95% etc
                      By default this is set to none and no contours
@@ -345,7 +345,7 @@ def plotSkyMap(raSample, decSample, nside=64, contours=None, colorbar=True, \
             ind = np.min(ml.find(np.cumsum(sky) >= 0.01*percent))
             region[indices[0:ind]] = 1.0
             cs = plot.contour(lambda lon, lat: region[hp.ang2pix(nside, 0.5*np.pi - lat, lon)], \
-                          colors='k', linewidths=0.5, levels=[0.5])
+                          colors='k', linewidths=1.0, levels=[0.5])
             #plt.clabel(cs, [0.5], fmt={0.5: '$\mathbf{%d\%%}$' % percent}, fontsize=8, inline=True)
 
     # plot map

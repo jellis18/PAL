@@ -112,9 +112,9 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, \
 
     # define rplus and rcross
     rplus = alpha*(At*np.cos(2*psi)-Bt*np.sin(2*psi))
-    rcross = alpha*(At*np.sin(2*psi)+Bt*np.sin(2*psi))
+    rcross = alpha*(At*np.sin(2*psi)+Bt*np.cos(2*psi))
     rplus_p = alpha_p*(At_p*np.cos(2*psi)-Bt_p*np.sin(2*psi))
-    rcross_p = alpha_p*(At_p*np.sin(2*psi)+Bt_p*np.sin(2*psi))
+    rcross_p = alpha_p*(At_p*np.sin(2*psi)+Bt_p*np.cos(2*psi))
 
     # residuals
     if psrTerm:
@@ -581,9 +581,6 @@ def createfourierdesignmatrix(t, nmodes):
     F = np.zeros((N, 2*nmodes))
     T = t.max() - t.min()
 
-    if nmodes % 2 == 0:
-        print "WARNING: Number of modes should be odd!"
-
     # define sampling frequencies
     #f = np.logspace(np.log10(1/T), np.log10(nmodes/T), nmodes)
     f = np.linspace(1/T, nmodes/T, nmodes)
@@ -711,5 +708,9 @@ def createGWB(psr, Amp, gam, DM=False):
             res_gw.append(f(psr[ll].toas))
 
     return res_gw
+
+
+
+
 
 

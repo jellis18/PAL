@@ -224,7 +224,7 @@ def PALInferenceSingleProposal(psr, runState, pardict):
             logJump = True
 
         else:
-            sigma = pardict[param_name]/10
+            sigma = pardict[param_name].value/10
 
     # take into account temperatrue and periodic big jumps
     sigma *= np.sqrt(T) * big_sigma

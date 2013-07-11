@@ -369,6 +369,7 @@ class pulsar(object):
         # loop though keys in pulsargroup and fill in psr attributes that are needed for GW analysis
         self.dist = None
         self.distErr = None
+        self.fH = None
 
         for key in pulsargroup:
 
@@ -429,6 +430,32 @@ class pulsar(object):
             elif key == "Gmatrix":
                 if addGmatrix:
                     self.G = pulsargroup[key].value
+
+            ## noise parameters ##
+
+            elif key == "Amp":
+
+                self.Amp = pulsargroup[key].value 
+            
+            # red noise spectral
+            elif key == "gam":
+                self.gam = pulsargroup[key].value 
+            
+            # efac
+            elif key == "efac":
+                self.efac = pulsargroup[key].value 
+            
+            # equad
+            elif key == "equad":
+                self.equad = pulsargroup[key].value 
+            
+            # fH
+            elif key == "fH":
+                self.fH = pulsargroup[key].value 
+
+            # pulsar distance uncertainty in kpc
+            elif key == "distErr":
+                self.distErr = pulsargroup[key].value 
 
         if self.dist is None:
             print 'WARNING: No distance info, using d = 1 kpc'
