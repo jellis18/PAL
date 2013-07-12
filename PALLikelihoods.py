@@ -321,6 +321,15 @@ def lentatiMarginalizedLike(psr, F, s, rho, efac, equad):
     """
     Lentati marginalized likelihood function only including efac and equad
 
+    @param psr: Pulsar class
+    @param F: Fourier design matrix constructed in PALutils
+    @param s: diagonalized white noise matrix
+    @param rho: Power spectrum coefficients
+    @param efac: constant multipier on error bar covaraince matrix term
+    @param equad: Additional white noise added in quadrature to equad
+
+    @return: LogLike: loglikelihood
+
     """
 
     # compute d
@@ -341,6 +350,7 @@ def lentatiMarginalizedLike(psr, F, s, rho, efac, equad):
     Phi = np.diag(10**arr)
     Sigma = FNF + np.diag(1/10**arr)
 
+    # cholesky decomp for second term in exponential
     cf = sl.cho_factor(Sigma)
     expval2 = sl.cho_solve(cf, d)
     logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
@@ -358,5 +368,68 @@ def lentatiMarginalizedLike(psr, F, s, rho, efac, equad):
   
 
     return logLike
+
+def lentatiMarginalizedLikePL(psr, F, s, A, f, gam, efac, equad):
+    """
+    Lentati marginalized likelihood function only including efac and equad
+    and power law coefficients
+
+    @param psr: Pulsar class
+    @param F: Fourier design matrix constructed in PALutils
+    @param s: diagonalized white noise matrix
+    @param A: Power spectrum Amplitude
+    @param gam: Power spectrum index
+    @param f: Frequencies at which to parameterize power spectrum (Hz)
+    @param efac: constant multipier on error bar covaraince matrix term
+    @param equad: Additional white noise added in quadrature to equad
+
+    @return: LogLike: loglikelihood
+
+    """
+
+    # compute total time span of data
+    Tspan = psr.toas.max() - psr.toas.min()
+
+    # get power spectrum coefficients
+    f1yr = 1/3.16e7
+    rho = A**2/24/np.pi**2 * f1yr**(gam-3) * f**(-gam)/Tspan
+
+    # compute d
+    d = np.dot(F.T, psr.res/(efac*s + equad**2))
+
+    # compute Sigma
+    N = 1/(efac*s + equad**2)
+    right = (N*F.T).T
+    FNF = np.dot(F.T, right)
+
+    arr = np.zeros(2*len(rho))
+    ct = 0
+    for ii in range(0, 2*len(rho), 2):
+        arr[ii] = rho[ct]
+        arr[ii+1] = rho[ct]
+        ct += 1
+
+    Phi = np.diag(10**arr)
+    Sigma = FNF + np.diag(1/arr)
+
+    # cholesky decomp for second term in exponential
+    cf = sl.cho_factor(Sigma)
+    expval2 = sl.cho_solve(cf, d)
+    logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
+
+    logdet_Phi = np.sum(np.log(arr))
+
+    logdet_N = np.sum(np.log(efac*s + equad**2))
+
+    dtNdt = np.sum(psr.res**2/(efac*s + equad**2))
+
+    logLike = -0.5 * (logdet_N + logdet_Phi + logdet_Sigma)\
+                    - 0.5 * (dtNdt - np.dot(d, expval2))
+
+    #print logdet_Sigma, logdet_Phi, W**2*np.dot(d, expval2)
+  
+
+    return logLike
+
 
 
