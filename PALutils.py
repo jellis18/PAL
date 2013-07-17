@@ -566,13 +566,14 @@ def angularSeparation(theta1, phi1, theta2, phi2):
     return np.arccos(cosMu)
 
 
-def createfourierdesignmatrix(t, nmodes, freq=False):
+def createfourierdesignmatrix(t, nmodes, freq=False, Tspan=None):
     """
     Construct fourier design matrix from eq 11 of Lentati et al, 2013
 
     @param t: vector of time series in seconds
     @param nmodes: number of fourier coefficients to use
     @param freq: option to output frequencies
+    @param Tspan: option to some other Tspan
 
     @return: F: fourier design matrix
     @return: f: Sampling frequencies (if freq=True)
@@ -581,10 +582,13 @@ def createfourierdesignmatrix(t, nmodes, freq=False):
 
     N = len(t)
     F = np.zeros((N, 2*nmodes))
-    T = t.max() - t.min()
+
+    if Tspan is not None:
+        T = Tspan
+    else:
+        T = t.max() - t.min()
 
     # define sampling frequencies
-    #f = np.logspace(np.log10(1/T), np.log10(nmodes/T), nmodes)
     f = np.linspace(1/T, nmodes/T, nmodes)
 
     # The sine/cosine modes

@@ -26,6 +26,10 @@ parser.add_argument('--nmodes', dest='nmodes', action='store', type=int, default
                    help='number of fourier modes to use (default=10)')
 parser.add_argument('--powerlaw', dest='powerlaw', action='store_true', default=False,
                    help='Use power law model (default = False)')
+parser.add_argument('--fc', dest='fc', action='store_true', default=False,
+                   help='Use power law model with cross over frequency (default = False)')
+parser.add_argument('--broken', dest='broken', action='store_true', default=False,
+                   help='Use power law with two spectral indices and a cross over frequency (default = False)')
 
 
 # parse arguments
@@ -51,7 +55,8 @@ pulsargroup = pfile['Data']['Pulsars'][args.pname]
 psr = PALpulsarInit.pulsar(pulsargroup, addGmatrix=True)
 
 # initialize fourier design matrix
-F, f = PALutils.createfourierdesignmatrix(psr.toas, args.nmodes, freq=True)
+if args.nmodes != 0:
+    F, f = PALutils.createfourierdesignmatrix(psr.toas, args.nmodes, freq=True)
 
 # get G matrices
 psr.G = PALutils.createGmatrix(psr.dmatrix)
@@ -67,11 +72,13 @@ proj = np.dot(u.T, np.dot(Linv, psr.G.T))
 
 # project residuals onto new basis
 psr.res = np.dot(proj, psr.res)
-F = np.dot(proj, F)
+
+if args.nmodes != 0:
+    F = np.dot(proj, F)
 
 
 # parameterize by power law
-if args.powerlaw:
+if args.powerlaw and args.nmodes != 0:
     print 'Parameterizing Power spectrum coefficients by a power law'
 
     def myprior(cube, ndim, nparams):
@@ -82,7 +89,7 @@ if args.powerlaw:
         qmax = -5
         lAmin = -20
         lAmax = -10
-        gamMin = 0
+        gamMin = -7
         gamMax = 7
 
         # convert from hypercube
@@ -107,10 +114,96 @@ if args.powerlaw:
     # number of dimensions our problem has
     n_params = 4
     nlive = 500
+
+if args.powerlaw == False and args.nmodes != 0 and args.fc and args.broken == False:
+    print 'Parameterizing Power spectrum coefficients by a power law with a cross over frequency'
+
+    def myprior(cube, ndim, nparams):
+        # define parameter ranges
+        emin = 0.1
+        emax = 10
+        qmin = -10
+        qmax = -5
+        lAmin = -20
+        lAmax = -10
+        gamMin = -7
+        gamMax = 7
+        lfcmin = -12
+        lfcmax = -7
+
+        # convert from hypercube
+        cube[0] = emin + cube[0] * (emax - emin)
+        cube[1] = qmin + cube[1] * (qmax - qmin)
+        cube[2] = lAmin + cube[2] * (lAmax - lAmin)
+        cube[3] = gamMin + cube[3] * (gamMax - gamMin)
+        cube[4] = lfcmin + cube[4] * (lfcmax - lfcmin)
+
+    def myloglike(cube, ndim, nparams):
+
+        efac = cube[0]
+        equad = 10**cube[1]
+        A = 10**cube[2] 
+        gam = cube[3] 
+        fc = 10**cube[4]
+
+        loglike = PALLikelihoods.lentatiMarginalizedLikePL(psr, F, s, A, f, gam, efac, equad, fc=fc)
+
+        #print efac, rho, loglike
+
+        return loglike
+
+    # number of dimensions our problem has
+    n_params = 5
+    nlive = 500
+
+if args.powerlaw == False and args.nmodes != 0 and args.broken:
+    print 'Parameterizing Power spectrum coefficients by a broken power law'
+
+    def myprior(cube, ndim, nparams):
+        # define parameter ranges
+        emin = 0.1
+        emax = 10
+        qmin = -10
+        qmax = -5
+        lAmin = -20
+        lAmax = -10
+        gamMin = -7
+        gamMax = 7
+        lfcmin = -12
+        lfcmax = -7
+
+        # convert from hypercube
+        cube[0] = emin + cube[0] * (emax - emin)
+        cube[1] = qmin + cube[1] * (qmax - qmin)
+        cube[2] = lAmin + cube[2] * (lAmax - lAmin)
+        cube[3] = gamMin + cube[3] * (gamMax - gamMin)
+        cube[4] = lfcmin + cube[4] * (lfcmax - lfcmin)
+        cube[5] = gamMin + cube[5] * (gamMax - gamMin)
+
+    def myloglike(cube, ndim, nparams):
+
+        efac = cube[0]
+        equad = 10**cube[1]
+        A = 10**cube[2] 
+        gam = cube[3] 
+        fc = 10**cube[4]
+        beta = cube[5]
+
+        loglike = PALLikelihoods.lentatiMarginalizedLikePL(psr, F, s, A, f, gam, efac, equad, fc=fc, beta=beta)
+
+        #print efac, rho, loglike
+
+        return loglike
+
+    # number of dimensions our problem has
+    n_params = 6
+    nlive = 500
+
     
-    # parameterize by independent coefficienta
-else:
-    print 'Parameterizing Power spectrum coefficients by independent coefficients'
+# parameterize by independent coefficienta
+if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.broken == False:
+
+    print 'Parameterizing Power spectrum coefficients by {0} independent coefficients'.format(args.nmodes)
     
     def myprior(cube, ndim, nparams):
         # define parameter ranges
@@ -145,9 +238,40 @@ else:
     n_params = args.nmodes + 2
     nlive = 500
 
+if args.powerlaw == False and args.nmodes == 0 and args.fc == False and args.broken == False:
+
+    print 'Only using white noise model!'
+
+    def myprior(cube, ndim, nparams):
+        # define parameter ranges
+        emin = 0.1
+        emax = 10
+        qmin = -10
+        qmax = -5
+
+        # convert from hypercube
+        cube[0] = emin + cube[0] * (emax - emin)
+        cube[1] = qmin + cube[1] * (qmax - qmin)
+
+    def myloglike(cube, ndim, nparams):
+
+        efac = cube[0]
+        equad = 10**cube[1]
+       
+        loglike = -0.5 * (np.sum(np.log(efac*s + equad**2)) + np.sum(psr.res**2/(efac*s + equad**2)))
+
+        #print efac, rho, loglike
+
+        return loglike
+
+    # number of dimensions our problem has
+    n_params = args.nmodes + 2
+    nlive = 500
+
+
 # run MultiNest
 pymultinest.run(myloglike, myprior, n_params, resume = False, \
-                verbose = True, sampling_efficiency = 0.8, \
+                verbose = True, sampling_efficiency = 0.1, \
                 outputfiles_basename =  args.outDir+'/test', \
                 n_iter_before_update=5, n_live_points=nlive)
 

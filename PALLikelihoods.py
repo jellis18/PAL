@@ -3,6 +3,7 @@ import numpy as np
 import scipy.linalg as sl
 from scipy.optimize import minimize_scalar
 import PALutils
+import time
 import sys,os
 
 ########################## DETECTION STATISTICS ##################################
@@ -326,7 +327,7 @@ def lentatiMarginalizedLike(psr, F, s, rho, efac, equad):
     @param s: diagonalized white noise matrix
     @param rho: Power spectrum coefficients
     @param efac: constant multipier on error bar covaraince matrix term
-    @param equad: Additional white noise added in quadrature to equad
+    @param equad: Additional white noise added in quadrature to efac
 
     @return: LogLike: loglikelihood
 
@@ -369,7 +370,7 @@ def lentatiMarginalizedLike(psr, F, s, rho, efac, equad):
 
     return logLike
 
-def lentatiMarginalizedLikePL(psr, F, s, A, f, gam, efac, equad):
+def lentatiMarginalizedLikePL(psr, F, s, A, f, gam, efac, equad, fc=None, beta=None):
     """
     Lentati marginalized likelihood function only including efac and equad
     and power law coefficients
@@ -381,7 +382,14 @@ def lentatiMarginalizedLikePL(psr, F, s, A, f, gam, efac, equad):
     @param gam: Power spectrum index
     @param f: Frequencies at which to parameterize power spectrum (Hz)
     @param efac: constant multipier on error bar covaraince matrix term
-    @param equad: Additional white noise added in quadrature to equad
+    @param equad: Additional white noise added in quadrature to efac
+    @param fc: Optional cross over frequency in powerlaw:
+
+                P(f) = A/(1+(f/fc)^2)^-gamma/2
+
+    @param beta: Optional secondary spectral index in powerlaw:
+
+                P(f) = A f^-gamma/(1+(f/fc)^2)^beta/2
 
     @return: LogLike: loglikelihood
 
@@ -392,7 +400,15 @@ def lentatiMarginalizedLikePL(psr, F, s, A, f, gam, efac, equad):
 
     # get power spectrum coefficients
     f1yr = 1/3.16e7
-    rho = A**2/24/np.pi**2 * f1yr**(gam-3) * f**(-gam)/Tspan
+
+    if fc is not None and beta is None:
+        rho = A**2/12/np.pi**2 * f1yr**(gam-3) /(fc**2 + f**2)**(gam/2)/Tspan
+
+    elif fc is not None and beta is not None:
+        rho = A**2/12/np.pi**2 * f1yr**(gam-3) * f**(-gam) * (1+(fc/f)**2)**(-beta/2)/Tspan
+        
+    elif fc is None and beta is None:
+        rho = A**2/12/np.pi**2 * f1yr**(gam-3) * f**(-gam)/Tspan
 
     # compute d
     d = np.dot(F.T, psr.res/(efac*s + equad**2))
@@ -426,10 +442,127 @@ def lentatiMarginalizedLikePL(psr, F, s, A, f, gam, efac, equad):
     logLike = -0.5 * (logdet_N + logdet_Phi + logdet_Sigma)\
                     - 0.5 * (dtNdt - np.dot(d, expval2))
 
-    #print logdet_Sigma, logdet_Phi, W**2*np.dot(d, expval2)
-  
 
     return logLike
+
+def modelIndependentFullPTA(psr, F, s, rho, kappa, efac, equad, ORF):
+    """
+    Model Independent stochastic background likelihood function
+
+    """
+    tstart = time.time()
+
+    # get the number of modes, should be the same for all pulsars
+    nmode = len(rho)
+    npsr = len(psr)
+
+    loglike1 = 0
+    FtNF = []
+    for ct,p in enumerate(psr):
+    
+        # compute d
+        if ct == 0:
+            d = np.dot(F[ct].T, p.res/(efac[ct]*s[ct] + equad[ct]**2))
+        else:
+            d = np.append(d, np.dot(F[ct].T, p.res/(efac[ct]*s[ct] + equad[ct]**2)))
+
+        # compute FT N F
+        N = 1/(efac[ct]*s[ct] + equad[ct]**2)
+        right = (N*F[ct].T).T
+        FtNF.append(np.dot(F[ct].T, right))
+        
+        # log determinant of N
+        logdet_N = np.sum(np.log(efac[ct]*s[ct] + equad[ct]**2))
+
+        # triple produce in likelihood function
+        dtNdt = np.sum(p.res**2/(efac[ct]*s[ct] + equad[ct]**2))
+
+        loglike1 += -0.5 * (logdet_N + dtNdt)
+
+    # construct elements of sigma array
+    sigdiag = []
+    sigoffdiag = []
+    for ii in range(npsr):
+        tot = np.zeros(2*nmode)
+        offdiag = np.zeros(2*nmode)
+
+        # off diagonal terms
+        offdiag[0::2] = 10**rho
+        offdiag[1::2] = 10**rho
+
+        # diagonal terms
+        tot[0::2] = 10**rho
+        tot[1::2] = 10**rho
+
+        # add in individual red noise
+        if len(kappa[ii]) > 0:
+            tot[0::2][0:len(kappa[ii])] = 10**kappa[ii]
+            tot[1::2][0:len(kappa[ii])] = 10**kappa[ii]
+        
+        # fill in lists of arrays
+        sigdiag.append(tot)
+        sigoffdiag.append(offdiag)
+
+    tstart2 = time.time()
+
+    # compute Phi inverse from Lindley's code
+    smallMatrix = np.zeros((2*nmode, npsr, npsr))
+    for ii in range(npsr):
+        for jj in range(ii,npsr):
+
+            if ii == jj:
+                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigdiag[jj]
+            else:
+                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigoffdiag[jj]
+                smallMatrix[:,jj,ii] = smallMatrix[:,ii,jj]
+
+
+    # invert them
+    logdet_Phi = 0
+    for ii in range(2*nmode):
+        L = sl.cho_factor(smallMatrix[ii,:,:])
+        smallMatrix[ii,:,:] = sl.cho_solve(L, np.eye(npsr))
+        logdet_Phi += np.sum(2*np.log(np.diag(L[0])))
+
+    # now fill in real covariance matrix
+    Phi = np.zeros((2*npsr*nmode, 2*npsr*nmode))
+    for ii in range(npsr):
+        for jj in range(ii,npsr):
+            for kk in range(0,2*nmode):
+                Phi[kk+ii*2*nmode,kk+jj*2*nmode] = smallMatrix[kk,ii,jj]
+            #Phi[(ii*2*nmode):(2*nmode+ii*2*nmode),(jj*2*nmode):(2*nmode+jj*2*nmode)] = smallMatrix[:,ii,jj]
+    
+    # symmeterize Phi
+    Phi = Phi + Phi.T - np.diag(np.diag(Phi))
+            
+    # compute sigma
+    #sigdiag = np.array(sigdiag)
+    #Phi = np.diag(1/sigdiag.reshape(np.size(sigdiag)))
+    #logdet_Phi = np.sum(np.log(sigdiag))
+    Sigma = sl.block_diag(*FtNF) + Phi
+
+    tmatrix = time.time() - tstart2
+
+    tstart3 = time.time()
+            
+    # cholesky decomp for second term in exponential
+    cf = sl.cho_factor(Sigma)
+    expval2 = sl.cho_solve(cf, d)
+    logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
+
+    tinverse = time.time() - tstart3
+
+    logLike = -0.5 * (logdet_Phi + logdet_Sigma) + 0.5 * (np.dot(d, expval2)) + loglike1
+
+    #print 'Total time: {0}'.format(time.time() - tstart)
+    #print 'Matrix construction time: {0}'.format(tmatrix)
+    #print 'Inversion time: {0}\n'.format(tinverse)
+
+
+    return logLike
+
+
+
 
 
 
