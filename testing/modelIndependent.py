@@ -106,16 +106,17 @@ for ct, p in enumerate(psr):
 ORF = PALutils.computeORFMatrix(psr)/2
 
 # fill in kappa with [] TODO: this is a hack for now to not include additional red noise
-kappa = [ [] for jj in range(npsr)]
-Ared = np.zeros(npsr)
-gred = np.zeros(npsr)
+if args.nored:
+    kappa = [ [] for jj in range(npsr)]
+    Ared = np.zeros(npsr)
+    gred = np.zeros(npsr)
 
 
 # parameterize by power law
 if args.powerlaw:
     print 'Parameterizing Power spectrum coefficients by a power law'
 
-    if args.efac == False and args.equad == False:
+    if args.efac == False and args.equad == False and args.nored:
         print 'Automatically setting EFAC = 1 and EQUAD = 0 for all pulsars'
 
         def myprior(cube, ndim, nparams):
@@ -130,8 +131,6 @@ if args.powerlaw:
             gamMax = 7
 
             # convert from hypercube
-            #cube[0] = emin + cube[0] * (emax - emin)
-            #cube[1] = qmin + cube[1] * (qmax - qmin)
             cube[0] = lAmin + cube[0] * (lAmax - lAmin)
             cube[1] = gamMin + cube[1] * (gamMax - gamMin)
 
@@ -153,7 +152,7 @@ if args.powerlaw:
         n_params = 2
         nlive = 500
     
-    if args.efac == False and args.equad:
+    if args.efac == False and args.equad and args.nored:
         print 'Using EQUAD as a search parameter. Automatically setting EFAC = 1.'
 
         def myprior(cube, ndim, nparams):
@@ -195,7 +194,7 @@ if args.powerlaw:
         n_params = 2 + npsr
         nlive = 500
     
-    if args.efac and args.equad == False:
+    if args.efac and args.equad == False and args.nored:
         print 'Using EFAC as a search parameter. Automatically setting EQUAD = 0.'
 
         def myprior(cube, ndim, nparams):
@@ -237,7 +236,7 @@ if args.powerlaw:
         n_params = 2 + npsr
         nlive = 500
     
-    if args.efac and args.equad:
+    if args.efac and args.equad and args.nored:
         print 'Using both EFAC and EQUAD as search parameters'
 
         def myprior(cube, ndim, nparams):
@@ -266,7 +265,7 @@ if args.powerlaw:
             gam = cube[1] 
             for ii in range(npsr):
                 efac[ii] = cube[ii+2]
-                equad[ii] = cube[ii+2+npsr]
+                equad[ii] = 10**cube[ii+2+npsr]
             
             loglike = PALLikelihoods.modelIndependentFullPTAPL(psr, F, Diag, f, A, gam, \
                                                                Ared, gred, efac, equad, ORF)
@@ -277,6 +276,54 @@ if args.powerlaw:
 
         # number of dimensions our problem has
         n_params = 2 + 2*npsr
+        nlive = 500
+    
+    if args.efac and args.equad and args.nored == False:
+        print 'Using both EFAC and EQUAD as search parameters. Also parameterizing intrinsic red noise as powerlaw.'
+
+        def myprior(cube, ndim, nparams):
+            # define parameter ranges
+            emin = 0.1
+            emax = 5
+            qmin = -8
+            qmax = -5
+            lAmin = -17
+            lAmax = -11
+            gamMin = 0
+            gamMax = 7
+
+            # convert from hypercube
+            cube[0] = lAmin + cube[0] * (lAmax - lAmin)
+            cube[1] = gamMin + cube[1] * (gamMax - gamMin)
+            for ii in range(npsr):
+                cube[ii+2] = emin + cube[ii+2] * (emax - emin)
+                cube[ii+npsr+2] = qmin + cube[ii+npsr+2] * (qmin - qmax)
+                cube[ii+2*npsr+2] = lAmin + cube[ii+2*npsr+2] * (lAmin - lAmax)
+                cube[ii+3*npsr+2] = gamMin + cube[ii+3*npsr+2] * (gamMin - gamMax)
+
+        def myloglike(cube, ndim, nparams):
+
+            efac = np.zeros(npsr)
+            equad = np.zeros(npsr)
+            Ared = np.zeros(npsr)
+            gred = np.zeros(npsr)
+            A = 10**cube[0] 
+            gam = cube[1] 
+            for ii in range(npsr):
+                efac[ii] = cube[ii+2]
+                equad[ii] = 10**cube[ii+2+npsr]
+                Ared[ii] = 10**cube[ii+2+2*npsr]
+                gred[ii] = cube[ii+2+3*npsr]
+            
+            loglike = PALLikelihoods.modelIndependentFullPTAPL(psr, F, Diag, f, A, gam, \
+                                                               Ared, gred, efac, equad, ORF)
+
+            #print efac, rho, loglike
+
+            return loglike
+
+        # number of dimensions our problem has
+        n_params = 2 + 4*npsr
         nlive = 500
     
     # parameterize by independent coefficienta
@@ -447,9 +494,9 @@ tstart = time.time()
 #                n_iter_before_update=5, n_live_points=nlive, \
 #                const_efficiency_mode=False)
 
-nlive = 300
+nlive = 250
 pymultinest.run(myloglike, myprior, n_params, resume = False, \
-                verbose = True, sampling_efficiency = 0.05, \
+                verbose = True, sampling_efficiency = 0.01, \
                 outputfiles_basename =  args.outDir+'/test', \
                 n_iter_before_update=5, n_live_points=nlive, \
                 const_efficiency_mode=True, importance_nested_sampling=True)

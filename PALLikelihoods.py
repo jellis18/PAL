@@ -604,6 +604,10 @@ def modelIndependentFullPTAPL(psr, F, s, f, Agw, gamgw, Ared, gred, efac, equad,
 
         loglike1 += -0.5 * (logdet_N + dtNdt)
 
+    tF = time.time() - tstart
+    
+    tstart2 = time.time()
+
     # construct elements of sigma array
     sigdiag = []
     sigoffdiag = []
@@ -613,6 +617,125 @@ def modelIndependentFullPTAPL(psr, F, s, f, Agw, gamgw, Ared, gred, efac, equad,
 
         # off diagonal terms
         offdiag[0::2] = 10**rho
+        offdiag[1::2] = 10**rho
+
+        # diagonal terms
+        tot[0::2] = 10**rho
+        tot[1::2] = 10**rho
+
+        # add in individual red noise
+        if len(kappa[ii]) > 0:
+            tot[0::2][0:len(kappa[ii])] += 10**kappa[ii]
+            tot[1::2][0:len(kappa[ii])] += 10**kappa[ii]
+        
+        # fill in lists of arrays
+        sigdiag.append(tot)
+        sigoffdiag.append(offdiag)
+
+
+    # compute Phi inverse from Lindley's code
+    smallMatrix = np.zeros((2*nmode, npsr, npsr))
+    for ii in range(npsr):
+        for jj in range(ii,npsr):
+
+            if ii == jj:
+                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigdiag[jj]
+            else:
+                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigoffdiag[jj]
+                smallMatrix[:,jj,ii] = smallMatrix[:,ii,jj]
+
+
+    # invert them
+    logdet_Phi = 0
+    for ii in range(2*nmode):
+        L = sl.cho_factor(smallMatrix[ii,:,:])
+        smallMatrix[ii,:,:] = sl.cho_solve(L, np.eye(npsr))
+        logdet_Phi += np.sum(2*np.log(np.diag(L[0])))
+
+    # now fill in real covariance matrix
+    Phi = np.zeros((2*npsr*nmode, 2*npsr*nmode))
+    for ii in range(npsr):
+        for jj in range(ii,npsr):
+            for kk in range(0,2*nmode):
+                Phi[kk+ii*2*nmode,kk+jj*2*nmode] = smallMatrix[kk,ii,jj]
+    
+    # symmeterize Phi
+    Phi = Phi + Phi.T - np.diag(np.diag(Phi))
+            
+    # compute sigma
+    Sigma = sl.block_diag(*FtNF) + Phi
+
+    tmatrix = time.time() - tstart2
+
+    tstart3 = time.time()
+            
+    # cholesky decomp for second term in exponential
+    cf = sl.cho_factor(Sigma)
+    expval2 = sl.cho_solve(cf, d)
+    logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
+
+    tinverse = time.time() - tstart3
+
+    logLike = -0.5 * (logdet_Phi + logdet_Sigma) + 0.5 * (np.dot(d, expval2)) + loglike1
+
+    #print 'Total time: {0}'.format(time.time() - tstart)
+    #print 'FtF time: {0}'.format(tF)
+    #print 'Matrix construction time: {0}'.format(tmatrix)
+    #print 'Inversion time: {0}\n'.format(tinverse)
+
+    return logLike
+
+def modelIndependentFullPTASinglSource(psr, proj, s, f, theta, phi, rho, kappa, efac, equad, ORF):
+    """
+    Model Independent single source testing function
+
+    """
+    tstart = time.time()
+    
+    # get the number of modes, should be the same for all pulsars
+    nmode = len(rho)
+    npsr = len(psr)
+
+    # get F matrices for all pulsars at given frequency
+    F = [np.array([np.sin(2*np.pi*f*p.toas), np.cos(2*np.pi*f*p.toas)]).T for p in psr]
+
+    F = [np.dot(proj[ii], F[ii]) for ii in range(len(proj))]
+
+    loglike1 = 0
+    FtNF = []
+    for ct,p in enumerate(psr):
+    
+        # compute d
+        if ct == 0:
+            d = np.dot(F[ct].T, p.res/(efac[ct]*s[ct] + equad[ct]**2))
+        else:
+            d = np.append(d, np.dot(F[ct].T, p.res/(efac[ct]*s[ct] + equad[ct]**2)))
+
+        # compute FT N F
+        N = 1/(efac[ct]*s[ct] + equad[ct]**2)
+        right = (N*F[ct].T).T
+        FtNF.append(np.dot(F[ct].T, right))
+        
+        # log determinant of N
+        logdet_N = np.sum(np.log(efac[ct]*s[ct] + equad[ct]**2))
+
+        # triple produce in likelihood function
+        dtNdt = np.sum(p.res**2/(efac[ct]*s[ct] + equad[ct]**2))
+
+        loglike1 += -0.5 * (logdet_N + dtNdt)
+
+    # construct elements of sigma array
+    sigdiag = []
+    sigoffdiag = []
+    fplus = np.zeros(npsr)
+    fcross = np.zeros(npsr)
+    for ii in range(npsr):
+        fplus[ii], fcross[ii], cosMu = PALutils.createAntennaPatternFuncs(psr[ii], theta, phi)
+        tot = np.zeros(2*nmode)
+        offdiag = np.zeros(2*nmode)
+
+        # off diagonal terms
+        offdiag[0::2] = 10**rho 
         offdiag[1::2] = 10**rho
 
         # diagonal terms
@@ -636,9 +759,9 @@ def modelIndependentFullPTAPL(psr, F, s, f, Agw, gamgw, Ared, gred, efac, equad,
         for jj in range(ii,npsr):
 
             if ii == jj:
-                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigdiag[jj]
+                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigdiag[jj] * (fplus[ii]**2 + fcross[ii]**2)
             else:
-                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigoffdiag[jj]
+                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigoffdiag[jj] * (fplus[ii]*fplus[jj] + fcross[ii]*fcross[jj])
                 smallMatrix[:,jj,ii] = smallMatrix[:,ii,jj]
 
 

@@ -168,7 +168,7 @@ def makesubplot1d(ax, samples, weights=None, interpolate=False, smooth=True):
 
 # make triangle plot of marginalized posterior distribution
 def triplot(chain, color=True, weights=None, interpolate=False, smooth=True, \
-           labels=None, figsize=(11,8.5), title=None):
+           labels=None, figsize=(11,8.5), title=None, inj=None):
 
     """
 
@@ -215,11 +215,17 @@ def triplot(chain, color=True, weights=None, interpolate=False, smooth=True, \
                     makesubplot1d(axarr[ii][ii], chain[:,parameters[ii]], \
                                   weights=weights, interpolate=interpolate, \
                                   smooth=smooth)
+
+                    if inj is not None:
+                        axarr[ii][ii].axvline(inj[ii], lw=2, color='k')
                 else:
                     # Make a 2D plot
                     makesubplot2d(axarr[jj][ii], chain[:,parameters[ii]], \
                             chain[:,parameters[jj]],color=color, weights=weights, \
                                   smooth=smooth)
+
+                    if inj is not None:
+                        axarr[jj][ii].plot(inj[ii], inj[jj], 'x', color='k', markersize=12, mew=2, mec='k')
 
                 axarr[jj][ii].xaxis.set_major_locator(xmajorLocator)
                 axarr[jj][ii].yaxis.set_major_locator(ymajorLocator)
