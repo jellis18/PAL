@@ -530,15 +530,11 @@ def modelIndependentFullPTA(psr, F, s, rho, kappa, efac, equad, ORF):
         for jj in range(ii,npsr):
             for kk in range(0,2*nmode):
                 Phi[kk+ii*2*nmode,kk+jj*2*nmode] = smallMatrix[kk,ii,jj]
-            #Phi[(ii*2*nmode):(2*nmode+ii*2*nmode),(jj*2*nmode):(2*nmode+jj*2*nmode)] = smallMatrix[:,ii,jj]
     
     # symmeterize Phi
     Phi = Phi + Phi.T - np.diag(np.diag(Phi))
             
     # compute sigma
-    #sigdiag = np.array(sigdiag)
-    #Phi = np.diag(1/sigdiag.reshape(np.size(sigdiag)))
-    #logdet_Phi = np.sum(np.log(sigdiag))
     Sigma = sl.block_diag(*FtNF) + Phi
 
     tmatrix = time.time() - tstart2
@@ -561,6 +557,129 @@ def modelIndependentFullPTA(psr, F, s, rho, kappa, efac, equad, ORF):
 
     return logLike
 
+def modelIndependentFullPTAPL(psr, F, s, f, Agw, gamgw, Ared, gred, efac, equad, ORF):
+    """
+    Model Independent stochastic background likelihood function
+
+    """
+    tstart = time.time()
+
+    # parameterize GW as power law
+    Tspan = 1/f[0]
+    f1yr = 1/3.16e7
+    rho = np.log10(Agw**2/12/np.pi**2 * f1yr**(gamgw-3) * f**(-gamgw)/Tspan)
+
+    # get the number of modes, should be the same for all pulsars
+    nmode = len(rho)
+    npsr = len(psr)
+
+    # parameterize intrinsic red noise as power law
+    kappa = [] 
+    for ii in range(npsr):
+        if Ared[ii] == 0:
+            kappa.append([])
+        else:
+            kappa.append(np.log10(Ared[ii]**2/12/np.pi**2 * f1yr**(gred[ii]-3) * f**(-gred[ii])/Tspan))
+
+    loglike1 = 0
+    FtNF = []
+    for ct,p in enumerate(psr):
+    
+        # compute d
+        if ct == 0:
+            d = np.dot(F[ct].T, p.res/(efac[ct]*s[ct] + equad[ct]**2))
+        else:
+            d = np.append(d, np.dot(F[ct].T, p.res/(efac[ct]*s[ct] + equad[ct]**2)))
+
+        # compute FT N F
+        N = 1/(efac[ct]*s[ct] + equad[ct]**2)
+        right = (N*F[ct].T).T
+        FtNF.append(np.dot(F[ct].T, right))
+        
+        # log determinant of N
+        logdet_N = np.sum(np.log(efac[ct]*s[ct] + equad[ct]**2))
+
+        # triple produce in likelihood function
+        dtNdt = np.sum(p.res**2/(efac[ct]*s[ct] + equad[ct]**2))
+
+        loglike1 += -0.5 * (logdet_N + dtNdt)
+
+    # construct elements of sigma array
+    sigdiag = []
+    sigoffdiag = []
+    for ii in range(npsr):
+        tot = np.zeros(2*nmode)
+        offdiag = np.zeros(2*nmode)
+
+        # off diagonal terms
+        offdiag[0::2] = 10**rho
+        offdiag[1::2] = 10**rho
+
+        # diagonal terms
+        tot[0::2] = 10**rho
+        tot[1::2] = 10**rho
+
+        # add in individual red noise
+        if len(kappa[ii]) > 0:
+            tot[0::2][0:len(kappa[ii])] = 10**kappa[ii]
+            tot[1::2][0:len(kappa[ii])] = 10**kappa[ii]
+        
+        # fill in lists of arrays
+        sigdiag.append(tot)
+        sigoffdiag.append(offdiag)
+
+    tstart2 = time.time()
+
+    # compute Phi inverse from Lindley's code
+    smallMatrix = np.zeros((2*nmode, npsr, npsr))
+    for ii in range(npsr):
+        for jj in range(ii,npsr):
+
+            if ii == jj:
+                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigdiag[jj]
+            else:
+                smallMatrix[:,ii,jj] = ORF[ii,jj] * sigoffdiag[jj]
+                smallMatrix[:,jj,ii] = smallMatrix[:,ii,jj]
+
+
+    # invert them
+    logdet_Phi = 0
+    for ii in range(2*nmode):
+        L = sl.cho_factor(smallMatrix[ii,:,:])
+        smallMatrix[ii,:,:] = sl.cho_solve(L, np.eye(npsr))
+        logdet_Phi += np.sum(2*np.log(np.diag(L[0])))
+
+    # now fill in real covariance matrix
+    Phi = np.zeros((2*npsr*nmode, 2*npsr*nmode))
+    for ii in range(npsr):
+        for jj in range(ii,npsr):
+            for kk in range(0,2*nmode):
+                Phi[kk+ii*2*nmode,kk+jj*2*nmode] = smallMatrix[kk,ii,jj]
+    
+    # symmeterize Phi
+    Phi = Phi + Phi.T - np.diag(np.diag(Phi))
+            
+    # compute sigma
+    Sigma = sl.block_diag(*FtNF) + Phi
+
+    tmatrix = time.time() - tstart2
+
+    tstart3 = time.time()
+            
+    # cholesky decomp for second term in exponential
+    cf = sl.cho_factor(Sigma)
+    expval2 = sl.cho_solve(cf, d)
+    logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
+
+    tinverse = time.time() - tstart3
+
+    logLike = -0.5 * (logdet_Phi + logdet_Sigma) + 0.5 * (np.dot(d, expval2)) + loglike1
+
+    #print 'Total time: {0}'.format(time.time() - tstart)
+    #print 'Matrix construction time: {0}'.format(tmatrix)
+    #print 'Inversion time: {0}\n'.format(tinverse)
+
+    return logLike
 
 
 

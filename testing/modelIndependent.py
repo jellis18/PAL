@@ -77,6 +77,9 @@ Tmax = np.max([p.toas.max() - p.toas.min() for p in psr])
 # initialize fourier design matrix
 F = [PALutils.createfourierdesignmatrix(p.toas, args.nmodes, Tspan=Tmax) for p in psr]
 
+if args.powerlaw:
+    tmp, f = PALutils.createfourierdesignmatrix(p.toas, args.nmodes, Tspan=Tmax, freq=True)
+
 # get G matrices
 for p in psr:
     p.G = PALutils.createGmatrix(p.dmatrix)
@@ -100,49 +103,181 @@ for ct, p in enumerate(psr):
 
 
 # get ORF matrix
-ORF = PALutils.computeORFMatrix(psr)
+ORF = PALutils.computeORFMatrix(psr)/2
 
 # fill in kappa with [] TODO: this is a hack for now to not include additional red noise
 kappa = [ [] for jj in range(npsr)]
+Ared = np.zeros(npsr)
+gred = np.zeros(npsr)
 
 
 # parameterize by power law
 if args.powerlaw:
     print 'Parameterizing Power spectrum coefficients by a power law'
 
-    def myprior(cube, ndim, nparams):
-        # define parameter ranges
-        emin = 0.1
-        emax = 10
-        qmin = -10
-        qmax = -5
-        lAmin = -20
-        lAmax = -10
-        gamMin = 0
-        gamMax = 7
+    if args.efac == False and args.equad == False:
+        print 'Automatically setting EFAC = 1 and EQUAD = 0 for all pulsars'
 
-        # convert from hypercube
-        cube[0] = emin + cube[0] * (emax - emin)
-        cube[1] = qmin + cube[1] * (qmax - qmin)
-        cube[2] = lAmin + cube[2] * (lAmax - lAmin)
-        cube[3] = gamMin + cube[3] * (gamMax - gamMin)
+        def myprior(cube, ndim, nparams):
+            # define parameter ranges
+            emin = 0.1
+            emax = 10
+            qmin = -10
+            qmax = -5
+            lAmin = -17
+            lAmax = -10
+            gamMin = 0
+            gamMax = 7
 
-    def myloglike(cube, ndim, nparams):
+            # convert from hypercube
+            #cube[0] = emin + cube[0] * (emax - emin)
+            #cube[1] = qmin + cube[1] * (qmax - qmin)
+            cube[0] = lAmin + cube[0] * (lAmax - lAmin)
+            cube[1] = gamMin + cube[1] * (gamMax - gamMin)
 
-        efac = cube[0]
-        equad = 10**cube[1]
-        A = 10**cube[2] 
-        gam = cube[3] 
-        
-        loglike = PALLikelihoods.modelIndependentFullPTA(psr, F, Diag, rho, kappa, efac, equad, ORF)
+        def myloglike(cube, ndim, nparams):
 
-        #print efac, rho, loglike
+            efac = np.ones(npsr)
+            equad = np.zeros(npsr)
+            A = 10**cube[0] 
+            gam = cube[1] 
+            
+            loglike = PALLikelihoods.modelIndependentFullPTAPL(psr, F, Diag, f, A, gam, \
+                                                               Ared, gred, efac, equad, ORF)
 
-        return loglike
+            #print efac, rho, loglike
 
-    # number of dimensions our problem has
-    n_params = 4
-    nlive = 500
+            return loglike
+
+        # number of dimensions our problem has
+        n_params = 2
+        nlive = 500
+    
+    if args.efac == False and args.equad:
+        print 'Using EQUAD as a search parameter. Automatically setting EFAC = 1.'
+
+        def myprior(cube, ndim, nparams):
+            # define parameter ranges
+            emin = 0.1
+            emax = 10
+            qmin = -10
+            qmax = -5
+            lAmin = -17
+            lAmax = -10
+            gamMin = 0
+            gamMax = 7
+
+            # convert from hypercube
+            #cube[0] = emin + cube[0] * (emax - emin)
+            #cube[1] = qmin + cube[1] * (qmax - qmin)
+            cube[0] = lAmin + cube[0] * (lAmax - lAmin)
+            cube[1] = gamMin + cube[1] * (gamMax - gamMin)
+            for ii in range(npsr):
+                cube[ii+2] = qmin + cube[ii+2] * (qmax - qmin)
+
+        def myloglike(cube, ndim, nparams):
+
+            efac = np.ones(npsr)
+            equad = np.zeros(npsr)
+            A = 10**cube[0] 
+            gam = cube[1] 
+            for ii in range(npsr):
+                equad[ii] = 10**cube[ii+2]
+            
+            loglike = PALLikelihoods.modelIndependentFullPTAPL(psr, F, Diag, f, A, gam, \
+                                                               Ared, gred, efac, equad, ORF)
+
+            #print efac, rho, loglike
+
+            return loglike
+
+        # number of dimensions our problem has
+        n_params = 2 + npsr
+        nlive = 500
+    
+    if args.efac and args.equad == False:
+        print 'Using EFAC as a search parameter. Automatically setting EQUAD = 0.'
+
+        def myprior(cube, ndim, nparams):
+            # define parameter ranges
+            emin = 0.1
+            emax = 10
+            qmin = -10
+            qmax = -5
+            lAmin = -17
+            lAmax = -10
+            gamMin = 0
+            gamMax = 7
+
+            # convert from hypercube
+            #cube[0] = emin + cube[0] * (emax - emin)
+            #cube[1] = qmin + cube[1] * (qmax - qmin)
+            cube[0] = lAmin + cube[0] * (lAmax - lAmin)
+            cube[1] = gamMin + cube[1] * (gamMax - gamMin)
+            for ii in range(npsr):
+                cube[ii+2] = emin + cube[ii+2] * (emax - emin)
+
+        def myloglike(cube, ndim, nparams):
+
+            efac = np.zeros(npsr)
+            equad = np.zeros(npsr)
+            A = 10**cube[0] 
+            gam = cube[1] 
+            for ii in range(npsr):
+                efac[ii] = cube[ii+2]
+            
+            loglike = PALLikelihoods.modelIndependentFullPTAPL(psr, F, Diag, f, A, gam, \
+                                                               Ared, gred, efac, equad, ORF)
+
+            #print efac, rho, loglike
+
+            return loglike
+
+        # number of dimensions our problem has
+        n_params = 2 + npsr
+        nlive = 500
+    
+    if args.efac and args.equad:
+        print 'Using both EFAC and EQUAD as search parameters'
+
+        def myprior(cube, ndim, nparams):
+            # define parameter ranges
+            emin = 0.1
+            emax = 10
+            qmin = -10
+            qmax = -5
+            lAmin = -17
+            lAmax = -10
+            gamMin = 0
+            gamMax = 7
+
+            # convert from hypercube
+            cube[0] = lAmin + cube[0] * (lAmax - lAmin)
+            cube[1] = gamMin + cube[1] * (gamMax - gamMin)
+            for ii in range(npsr):
+                cube[ii+2] = emin + cube[ii+2] * (emax - emin)
+                cube[ii+npsr+2] = qmin + cube[ii+npsr+2] * (qmin - qmax)
+
+        def myloglike(cube, ndim, nparams):
+
+            efac = np.zeros(npsr)
+            equad = np.zeros(npsr)
+            A = 10**cube[0] 
+            gam = cube[1] 
+            for ii in range(npsr):
+                efac[ii] = cube[ii+2]
+                equad[ii] = cube[ii+2+npsr]
+            
+            loglike = PALLikelihoods.modelIndependentFullPTAPL(psr, F, Diag, f, A, gam, \
+                                                               Ared, gred, efac, equad, ORF)
+
+            #print efac, rho, loglike
+
+            return loglike
+
+        # number of dimensions our problem has
+        n_params = 2 + 2*npsr
+        nlive = 500
     
     # parameterize by independent coefficienta
 else:
