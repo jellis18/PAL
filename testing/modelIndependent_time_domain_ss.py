@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 
-# Run Lentati style noise estimation on single pulsar
-
 from __future__ import division
 import numpy as np
 import PALLikelihoods
@@ -9,7 +7,6 @@ import PALutils
 import PALpulsarInit
 import h5py as h5
 from ptsampler import PTSampler
-import pytwalk
 import scipy.linalg as sl
 import argparse
 import os, time
@@ -163,15 +160,14 @@ ldmin = -4
 ldmax = 4
 lmmin = 7
 lmmax = 9
-lfmin = -8
-lfmax = -7
+lfmin = -8.5
+lfmax = -7.5
 
 # set minimum and maximum parameter ranges
 pmin = np.array([thmin, phimin, lfmin, lmmin, psimin, incmin, phasemin])
 pmax = np.array([thmax, phimax, lfmax, lmmax, psimax, incmax, phasemax])
 
-#TODO: add in constant prior
-
+# log prior function
 def logprior(x):
 
     theta = x[0]
@@ -252,6 +248,7 @@ def updateRecursive(chain, M2, mu, iter, mem):
         M2 += np.outer(diff, (chain[ii,:]-mu))
 
     c = M2/(iter-1)
+
     # compute svd
     try:
         u, s, v = np.linalg.svd(c)
@@ -259,20 +256,6 @@ def updateRecursive(chain, M2, mu, iter, mem):
         print 'Warning: SVD did not converge, not updating covariance matrix'
 
     return c, M2, mu, u, s
-
-def online_variance(data):
-    n = 0
-    mean = 0
-    M2 = 0
- 
-    for x in data:
-        n = n + 1
-        delta = x - mean
-        mean = mean + delta/n
-        M2 = M2 + delta*(x - mean)
- 
-    variance = M2/(n - 1)
-    return variance
 
 # define jump proposal function for use in MCMC
 def jumpProposals(x, iter, beta):
@@ -330,42 +313,6 @@ for ii in range(ntemps):
 # set initial frequency to be maximum likelihood value
 p0[:,2] = np.log10(fmaxlike)
 
-
-######## do burn in with t-walk ######
-#
-## define prior function for t-walk
-#def Supp(x):
-#
-#    if logprior(x) != -np.inf:
-#        return True
-#    else:
-#        return False
-#
-## define loglike function for t-walk
-#def nloglike(x):
-#
-#    return -loglike(x)
-#
-## set up t-walk
-#twalk = pytwalk.pytwalk(n=ndim, U=nloglike, Supp=Supp)
-#
-## run t-walk
-#print 'Running burn-in with t-walk...\n'
-#twalk.Run( T=50000, x0=p0[0,:], xp0=p0[0,:]*1.001)
-#
-#print 'Burn-in done.\n'
-#
-## constructing covariance matrix based on burn-in
-#burnchain = twalk.Output[-10000:,0:ndim]
-#np.save(args.outDir + '/burn.npy', burnchain)
-#
-## initialize covariance matrix for jumps
-#global cov, U, S
-#cov_diag = np.std(burnchain, axis=0)
-#cov = np.diag(cov_diag**2)
-#U, S, V = np.linalg.svd(cov)
-
-
 # initialize covariance matrix for jumps
 global cov, M2, mu, U, S
 M2 = np.zeros((ndim, ndim))
@@ -386,8 +333,8 @@ U, S, V = np.linalg.svd(cov)
 cyclic = np.zeros(ndim)
 
 # add in cyclic values for phase and phi
-#cyclic[1] = 2*np.pi
-#cyclic[6] = 2*np.pi
+cyclic[1] = 2*np.pi
+cyclic[6] = 2*np.pi
 
 # initialize MH sampler
 sampler=PTSampler(ntemps, ndim, loglike, logprior, jumpProposals, threads=nthreads, betas=betas, cyclic=cyclic)

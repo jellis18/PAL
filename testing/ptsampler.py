@@ -332,18 +332,8 @@ class PTSampler(object):
         # TODO: put in parameter names
         if self.cyclic is not None:
             for ct,par in enumerate(self.cyclic):
-                if par != 0 and ct == 0 and p[ct] > np.pi:   # wrap theta
-                    p[ct] = 2*np.pi - p[ct]
-                    p[ct+1] += np.pi            # move phi by pi
-                elif par != 0 and ct == 0 and p[ct] < 0:     # wrap theta
-                    p[ct] = -p[ct]
-                    p[ct+1] += np.pi            # move phi by pi
-                    
-                # rest of the parameters
-                if par != 0 and ct != 0 and par == np.pi:
-                    p[ct] = np.arccos(np.cos(p[ct]))
-                elif par != 0 and ct != 0 and par == 2*np.pi:
-                    p[ct] = np.mod(p[ct],par)
+                if par != 0:
+                    p[ct] = np.mod(p[ct], par)
              
         return p
 

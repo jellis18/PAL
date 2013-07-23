@@ -2,7 +2,6 @@
 
 # Create Simulated Datasets by either injecting signals into real data or simulating ideal datasets.
 
-#TODO: Add lots more options, for now we just have injections of continuous signals into real data
 
 from __future__ import division
 import numpy as np
