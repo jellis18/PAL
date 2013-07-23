@@ -550,9 +550,9 @@ def modelIndependentFullPTA(psr, F, s, rho, kappa, efac, equad, ORF):
 
     logLike = -0.5 * (logdet_Phi + logdet_Sigma) + 0.5 * (np.dot(d, expval2)) + loglike1
 
-    #print 'Total time: {0}'.format(time.time() - tstart)
-    #print 'Matrix construction time: {0}'.format(tmatrix)
-    #print 'Inversion time: {0}\n'.format(tinverse)
+    print 'Total time: {0}'.format(time.time() - tstart)
+    print 'Matrix construction time: {0}'.format(tmatrix)
+    print 'Inversion time: {0}\n'.format(tinverse)
 
 
     return logLike
@@ -744,8 +744,8 @@ def modelIndependentFullPTASinglSource(psr, proj, s, f, theta, phi, rho, kappa, 
 
         # add in individual red noise
         if len(kappa[ii]) > 0:
-            tot[0::2][0:len(kappa[ii])] = 10**kappa[ii]
-            tot[1::2][0:len(kappa[ii])] = 10**kappa[ii]
+            tot[0::2][0:len(kappa[ii])] += 10**kappa[ii]
+            tot[1::2][0:len(kappa[ii])] += 10**kappa[ii]
         
         # fill in lists of arrays
         sigdiag.append(tot)

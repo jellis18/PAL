@@ -22,6 +22,8 @@ parser.add_option('--outFile', dest='outFile', action='store', type=str,
                    help='Full path to output filename')
 parser.add_option('--single', dest='single', action='store_true', default=False,
                    help='Add single source? (default = False)')
+parser.add_option('--nopterm', dest='nopterm', action='store_true', default=False,
+                   help='Dont include pulsar term in single source waveform? (default = False)')
 parser.add_option('--gwra', dest='gwra', action='store', type=float, default=1.0,
                    help='GW Right Ascension (default = 1.0 radian)')
 parser.add_option('--gwdec', dest='gwdec', action='store', type=float, default=0.5,
@@ -142,44 +144,6 @@ for p in pp:
     p.stoas[:] -= p.residuals()/86400
     p.fit()
 
-# add single source
-if args.single:
-
-    print 'Simulating single source'
-
-    if args.snr is not None:
-          
-        print 'Scaling distance to give SNR = {0}'.format(args.snr)
-        
-        snr2 = 0
-        args.dist = 1
-        for ct, p in enumerate(pp):
-
-            inducedRes = (PALutils.createResiduals(psr[ct], np.pi/2-args.gwdec, args.gwra, \
-                            args.gwchirpmass, args.gwdist, args.gwfreq, args.gwphase, \
-                            args.gwpolarization, args.gwinc))
-
-            # compute snr
-            snr2 += PALutils.calculateMatchedFilterSNR(psr[ct], inducedRes, inducedRes)**2
-
-        # get total snr
-        snr = np.sqrt(snr2)
-
-        # scale distance appropiately
-        args.dist = snr/args.snr
-
-        print 'Scaled GW distance = {0} for SNR = {1}'.format(args.dist, args.snr)
-    
-    # make residuals
-    for ct, p in enumerate(pp):
-
-        inducedRes = (PALutils.createResiduals(psr[ct], np.pi/2-args.gwdec, args.gwra, \
-                        args.gwchirpmass, args.gwdist, args.gwfreq, args.gwphase, \
-                        args.gwpolarization, args.gwinc))
-
-        # add to site arrival times of pulsar
-        p.stoas[:] += np.longdouble(inducedRes/86400)
-
 # add gwb
 if args.gwb:
     
@@ -264,7 +228,52 @@ if args.noise == False:
         tmp = np.dot(psr[ct].G.T, np.dot(white, psr[ct].G))
         invCov = np.dot(psr[ct].G, np.dot(np.linalg.inv(tmp), psr[ct].G.T))
         pulsargroup[psr[ct].name]['invCov'][...] = invCov
+        psr[ct].invCov = invCov
 
+# add single source put after all noise simulation so we can get accurate snr
+if args.single:
+
+    print 'Simulating single source'
+
+    # check for pterms
+    if args.nopterm:
+        print 'Not including pulsar term in single source waveform!'
+        pterm = False
+    else:
+        pterm = True
+    
+    if args.snr is not None:
+          
+        print 'Scaling distance to give SNR = {0}'.format(args.snr)
+
+        snr2 = 0
+        args.gwdist = 1
+        for ct, p in enumerate(pp):
+
+            inducedRes = (PALutils.createResiduals(psr[ct], np.pi/2-args.gwdec, args.gwra, \
+                            args.gwchirpmass, args.gwdist, args.gwfreq, args.gwphase, \
+                            args.gwpolarization, args.gwinc, psrTerm=pterm))
+
+            # compute snr
+            snr2 += PALutils.calculateMatchedFilterSNR(psr[ct], inducedRes, inducedRes)**2
+
+        # get total snr
+        snr = np.sqrt(snr2)
+
+        # scale distance appropiately
+        args.gwdist = snr/args.snr
+
+        print 'Scaled GW distance = {0} for SNR = {1}'.format(args.gwdist, args.snr)
+    
+    # make residuals
+    for ct, p in enumerate(pp):
+
+        inducedRes = (PALutils.createResiduals(psr[ct], np.pi/2-args.gwdec, args.gwra, \
+                        args.gwchirpmass, args.gwdist, args.gwfreq, args.gwphase, \
+                        args.gwpolarization, args.gwinc, psrTerm=pterm))
+
+        # add to site arrival times of pulsar
+        p.stoas[:] += np.longdouble(inducedRes/86400)
 
 # refit
 for p in pp:

@@ -289,17 +289,20 @@ if args.powerlaw:
             qmax = -5
             lAmin = -17
             lAmax = -11
+            Amin = 0
+            Amax = 5e-14
             gamMin = 0
             gamMax = 7
 
             # convert from hypercube
-            cube[0] = lAmin + cube[0] * (lAmax - lAmin)
-            cube[1] = gamMin + cube[1] * (gamMax - gamMin)
+            cube[0] = Amin + cube[0] * (Amax - Amin)
+            #cube[1] = gamMin + cube[1] * (gamMax - gamMin)
+            cube[1] = 4.333
             for ii in range(npsr):
                 cube[ii+2] = emin + cube[ii+2] * (emax - emin)
-                cube[ii+npsr+2] = qmin + cube[ii+npsr+2] * (qmin - qmax)
-                cube[ii+2*npsr+2] = lAmin + cube[ii+2*npsr+2] * (lAmin - lAmax)
-                cube[ii+3*npsr+2] = gamMin + cube[ii+3*npsr+2] * (gamMin - gamMax)
+                cube[ii+npsr+2] = qmin + cube[ii+npsr+2] * (qmax - qmin)
+                cube[ii+2*npsr+2] = lAmin + cube[ii+2*npsr+2] * (lAmax - lAmin)
+                cube[ii+3*npsr+2] = gamMin + cube[ii+3*npsr+2] * (gamMax - gamMin)
 
         def myloglike(cube, ndim, nparams):
 
@@ -307,7 +310,7 @@ if args.powerlaw:
             equad = np.zeros(npsr)
             Ared = np.zeros(npsr)
             gred = np.zeros(npsr)
-            A = 10**cube[0] 
+            A = cube[0] 
             gam = cube[1] 
             for ii in range(npsr):
                 efac[ii] = cube[ii+2]
