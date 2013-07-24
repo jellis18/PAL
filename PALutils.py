@@ -35,7 +35,7 @@ def createAntennaPatternFuncs(psr, gwtheta, gwphi):
 
     return fplus, fcross, cosMu
 
-def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, \
+def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=None, \
                      psrTerm=True, evolve=True):
     """
     Function to create GW incuced residuals from a SMBMB as 
@@ -50,6 +50,7 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, \
     @param phase0: Initial Phase of GW source [radians]
     @param psi: Polarization of GW source [radians]
     @param inc: Inclination of GW source [radians]
+    @param pdist: Array of pulsar distances to use other than those in psr [kpc]
     @param psrTerm: Option to include pulsar term [boolean] 
     @param evolve: Option to exclude evolution [boolean]
 
@@ -59,7 +60,8 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, \
 
     # get values from pulsar object
     toas = psr.toas
-    pdist = psr.dist
+    if pdist is None:
+        pdist = psr.dist
 
     # get antenna pattern funcs and cosMu
     fplus, fcross, cosMu = createAntennaPatternFuncs(psr, gwtheta, gwphi)

@@ -164,28 +164,34 @@ lfmin = -8.5
 lfmax = -7.5
 
 # set minimum and maximum parameter ranges
-pmin = np.array([thmin, phimin, lfmin, lmmin, psimin, incmin, phasemin])
-pmax = np.array([thmax, phimax, lfmax, lmmax, psimax, incmax, phasemax])
+pmin = np.array([thmin, phimin, lfmin, lmmin, ldmin, psimin, incmin, phasemin])
+pmax = np.array([thmax, phimax, lfmax, lmmax, ldmax, psimax, incmax, phasemax])
 
 # log prior function
 def logprior(x):
 
-    theta = x[0]
-    phi = x[1]
-    lf = x[2]
-    lmc = x[3]
-    psi = x[4]
-    inc = x[5]
-    phase = x[6]
+    logp = 0
 
-    if np.all(x < pmax) and np.all(x > pmin):
-        return np.sum(np.log(1/(pmax-pmin)))
+    if np.all(x[0:8] <= pmax) and np.all(x[0:8] >= pmin):
+        logp += np.sum(np.log(1/(pmax-pmin)))
     else:
-        return -np.inf
+        logp += -np.inf
+
+    # pulsar distance prior
+    for ct, p in enumerate(psr):
+        pdist = x[8+ct]
+        m = p.dist
+        sig = p.distErr
+
+        if pdist < 0:
+            logp += -np.inf
+        else:
+            logp += -0.5 * (np.log(2*np.pi*sig**2) + (m-pdist)**2/2/sig**2)
+    
+    return logp
 
 # define log-likelihood
 def loglike(x):
-
 
     efac = np.ones(npsr)
     equad = np.zeros(npsr)
@@ -193,17 +199,18 @@ def loglike(x):
     phi = x[1]
     f = 10**x[2]
     mc = 10**x[3]
-    psi = x[4]
-    inc = x[5]
-    phase = x[6]
-    dist = 1
+    dist = 10**x[4]
+    psi = x[5]
+    inc = x[6]
+    phase = x[7]
+    pdist = x[8:(8+npsr)]
         
     loglike = 0
     for ct, p in enumerate(psr):
 
-        # make waveform with no pulsar term
-        s = PALutils.createResiduals(p, theta, phi, mc, dist, f, phase, psi, inc, \
-                 psrTerm=False)
+        # make waveform with pulsar term
+        s = PALutils.createResiduals(p, theta, phi, mc, dist, f, phase, psi, inc, pdist=pdist[ct], \
+                 psrTerm=True)
 
         # project onto white noise basis
         s = np.dot(projList[ct], s)
@@ -249,13 +256,7 @@ def updateRecursive(chain, M2, mu, iter, mem):
 
     c = M2/(iter-1)
 
-    # compute svd
-    try:
-        u, s, v = np.linalg.svd(c)
-    except np.linalg.linalg.LinAlgError:
-        print 'Warning: SVD did not converge, not updating covariance matrix'
-
-    return c, M2, mu, u, s
+    return c, M2, mu
 
 # define jump proposal function for use in MCMC
 def jumpProposals(x, iter, beta):
@@ -263,8 +264,29 @@ def jumpProposals(x, iter, beta):
     # how often to update covariance matrix
     mem = 1010
 
+    global cov, M2, mu, U, S
+
+    # update covarinace matrix
+    if (iter-1) % mem == 0 and (iter-1) != 0 and beta == 1:
+        cov, M2, mu = updateRecursive(sampler.chain[0,(iter-mem-1):(iter-1),:], M2, mu, iter-1, mem)
+        
+        # compute svd
+        c = cov[0:8, 0:8]
+        try:
+            U, S, v = np.linalg.svd(c)
+        except np.linalg.linalg.linalgerror:
+            print 'warning: svd did not converge, not updating covariance matrix'
+
+
+    # call jump proposal
+    q = jumps(x, iter, beta)
+
+    return q
+
+def covarianceJumpProposal(x, iter, beta):
+
     # get scale
-    scale = 1/10
+    scale = 1/5
 
     # medium size jump every 1000 steps
     if np.random.rand() < 1/1000:
@@ -274,26 +296,242 @@ def jumpProposals(x, iter, beta):
     if np.random.rand() < 1/10000:
         scale = 50
 
-    global cov, M2, mu, U, S
-
     # get parmeters in new diagonalized basis
-    y = np.dot(U.T, x)
-
-    # update covarinace matrix
-    if (iter-1) % mem == 0 and (iter-1) != 0 and beta == 1:
-        cov, M2, mu, U, S = updateRecursive(sampler.chain[0,(iter-mem-1):(iter-1),:], M2, mu, iter-1, mem)
+    subx = x[0:8]
+    y = np.dot(U.T, subx)
 
     # make correlated componentwise adaptive jump
-    ind = np.unique(np.random.randint(0, ndim, ndim))
+    ind = np.unique(np.random.randint(0, 8, 8))
     neff = len(ind)
     cd = 2.4 * np.sqrt(1/beta) / np.sqrt(neff) * scale
     y[ind] = y[ind] + np.random.randn(neff) * cd * np.sqrt(S[ind])
-    q = np.dot(U, y)
+    q = x.copy()
+    q[0:8] = np.dot(U, y)
+
+    # need to make sure that we keep the pulsar phase constant, plus small offset
+
+    # get parameters before jump
+    freq0 = 10**x[2]
+    pdist = q[8:]
+    phi0 = x[1]
+    theta0 = x[0]
+    
+    freq1 = 10**q[2]
+    phi1 = q[1]
+    theta1 = q[0]
+
+    # put pulsar distance in correct units
+    pdist *= 1.0267e11  
+
+    # get cosMu
+    cosMu0 = np.zeros(npsr)
+    cosMu1 = np.zeros(npsr)
+    for ii in range(npsr):
+        tmp1, temp2, cosMu0[ii] = PALutils.createAntennaPatternFuncs(psr[ii], theta0, phi0)
+        tmp1, temp2, cosMu1[ii] = PALutils.createAntennaPatternFuncs(psr[ii], theta1, phi1)
+    
+    # construct new pulsar distances to keep the pulsar phases constant
+    sigma = np.sqrt(1/beta) * 0.0
+    L_new = (freq0*pdist*(1-cosMu0) + np.random.randn(npsr)*sigma)/(freq1*(1-cosMu1))
+
+    # convert back to Kpc
+    L_new /= 1.0267e11 
+
+    q[8:] = L_new
 
     return q
 
+def smallPulsarPhaseJump(x, iter, beta):
+
+    # get old parameters
+    q = x.copy()
+
+    # jump size
+    sigma = np.sqrt(beta) * 0.1
+
+    # pick pulsar index at random
+    ind = np.random.randint(0, npsr, npsr)
+    ind = np.unique(ind)
+    
+    # get relevant parameters
+    freq = 10**x[2]
+    pdist = x[8+ind]
+    phi = x[1]
+    theta = x[0]
+
+    # put pulsar distance in correct units
+    pdist *= 1.0267e11  
+
+    # get cosMu
+    cosMu = np.zeros(len(ind))
+    for ii in range(len(ind)):
+        tmp1, temp2, cosMu[ii] = PALutils.createAntennaPatternFuncs(psr[ind[ii]], theta, phi)
+
+
+    # construct pulsar phase
+    phase_old = 2*np.pi*freq*pdist*(1-cosMu)
+
+    # gaussian jump 
+    phase_new = phase_old + np.random.randn(np.size(pdist))*sigma
+
+    # solve for new pulsar distances from phase_new
+    L_new = phase_new/(2*np.pi*freq*(1-cosMu))
+
+    # convert back to Kpc
+    L_new /= 1.0267e11 
+
+    q[8+ind] = L_new
+
+    return q
+
+def bigPulsarPhaseJump(x, iter, beta):
+
+    # get old parameters
+    q = x.copy()
+
+    # pick pulsar index at random
+    ind = np.random.randint(0, npsr, npsr)
+    ind = np.unique(ind)
+    
+    # get relevant parameters
+    freq = 10**x[2]
+    pdist = x[8+ind]
+    pdistErr = np.array([psr[ii].distErr for ii in list(ind)])
+    phi = x[1]
+    theta = x[0]
+
+    # put pulsar distance in correct units
+    pdist *= 1.0267e11  
+    pdistErr *= 1.0267e11  
+
+    # get cosMu
+    cosMu = np.zeros(len(ind))
+    for ii in range(len(ind)):
+        tmp1, temp2, cosMu[ii] = PALutils.createAntennaPatternFuncs(psr[ind[ii]], theta, phi)
+    
+    # construct pulsar phase
+    phase_old = 2*np.pi*freq*pdist*(1-cosMu)
+
+    # gaussian jump 
+    phase_jump = np.random.randn(np.size(pdist))*pdistErr*freq*(1-cosMu)
+
+    # make jump multiple of 2 pi
+    phase_jump = np.array([int(phase_jump[ii]) \
+                    for ii in range(np.size(pdist))])
+
+    # new phase
+    phase_new = phase_old + 2*np.pi*phase_jump
+
+    # solve for new pulsar distances from phase_new
+    L_new = phase_new/(2*np.pi*freq*(1-cosMu))
+
+    # convert back to Kpc
+    L_new /= 1.0267e11  
+
+    q[8+ind] = L_new
+
+    return q
+
+
+# class that manages jump proposals
+class JumpProposals(object):
+    """
+    Class that manages jump proposal distributions for use in MCMC or Nested Sampling.
+
+    """
+
+    def __init__(self):
+
+        self.propCycle = []
+
+    # add jump proposal distribution functions
+    def addProposalToCycle(self, func, weight):
+        """
+        Add jump proposal distributions to cycle with a given weight.
+
+        @param func: jump proposal function
+        @param weight: jump proposal function weight in cycle
+
+        """
+
+        # get length of cycle so far
+        length = len(self.propCycle)
+
+        # check for 0 weight
+        if weight == 0:
+            print 'ERROR: Can not have 0 weight in proposal cycle!'
+            sys.exit()
+
+        # add proposal to cycle
+        for ii in range(length, length + weight):
+            self.propCycle.append(func)
+
+
+    # randomized proposal cycle
+    def randomizeProposalCycle(self):
+        """
+        Randomize proposal cycle that has already been filled
+
+        """
+
+        # get length of full cycle
+        length = len(self.propCycle)
+
+        # get random integers
+        index = np.random.randint(low=0, high=(length-1), size=length)
+
+        # randomize proposal cycle
+        self.randomizedPropCycle = [self.propCycle[index[ii]] for ii in range(len(index))]
+
+
+    # call proposal functions from cycle
+    def __call__(self, x, iter, beta):
+        """
+        Call Jump proposals
+
+        """
+
+        # get length of cycle
+        length = len(self.propCycle)
+
+        # call function
+        q = self.randomizedPropCycle[np.mod(iter,length)](x, iter, beta)
+        #print self.randomizedPropCycle[np.mod(iter,length)]
+
+        # increment proposal cycle counter and re-randomize if at end of cycle
+        if iter % length == 0: self.randomizeProposalCycle()
+
+        return q
+
+
+###### MAKE JUMP PROPOSAL CYCLE #######
+
+# define weights
+BIG = 20
+SMALL = 5
+TINY = 1
+
+# initialize jumps
+jumps = JumpProposals()
+
+# add covariance jump proposals
+jumps.addProposalToCycle(covarianceJumpProposal, BIG)
+
+# add small jump in pulsar phase
+jumps.addProposalToCycle(smallPulsarPhaseJump, BIG)
+
+# add large jump in pulsar phase
+jumps.addProposalToCycle(bigPulsarPhaseJump, BIG)
+
+# randomize cycle
+jumps.randomizeProposalCycle()
+
+########################################
+
+    
+
 # number of dimensions our problem has
-ndim = 7
+ndim = 8 + npsr
 
 # set up temperature ladder
 ntemps = 4
@@ -308,7 +546,11 @@ betas = 1/T
 # pick starting values
 p0 = np.zeros((ntemps, ndim))
 for ii in range(ntemps):
-    p0[ii,:] = pmin + np.random.rand(ndim) * (pmax - pmin)
+    p0[ii,0:8] = pmin + np.random.rand(ndim-npsr) * (pmax - pmin)
+
+# start at measured pulsar distance
+for ct, p in enumerate(psr):
+    p0[:,8+ct] = p.dist
 
 # set initial frequency to be maximum likelihood value
 p0[:,2] = np.log10(fmaxlike)
@@ -322,12 +564,12 @@ cov_diag[0] = 0.1
 cov_diag[1] = 0.1
 cov_diag[2] = 0.01
 cov_diag[3] = 0.05
-cov_diag[4:] = 0.01
+cov_diag[4] = 0.05
+cov_diag[5:8] = 0.01
+for ct, p in enumerate(psr):
+    cov_diag[8+ct] = p.distErr/5
 cov = np.diag(cov_diag**2)
-U, S, V = np.linalg.svd(cov)
-
-cov = np.diag(cov_diag**2)
-U, S, V = np.linalg.svd(cov)
+U, S, V = np.linalg.svd(cov[0:8,0:8])
 
 # no cyclic variables
 cyclic = np.zeros(ndim)

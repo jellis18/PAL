@@ -265,7 +265,7 @@ class PTSampler(object):
                     if diff[j] < 0:
                         diff[j]=np.exp(diff[j])-nr.rand()
 
-                    if diff[j] > 0:
+                    if diff[j] >= 0:
                         p[j,:]=q[j,:]
                         lnprob[j]=newlnprob[j]
                         logl[j]=newlogl[j]
