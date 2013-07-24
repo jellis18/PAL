@@ -9,7 +9,6 @@ import PALutils
 import PALpulsarInit
 import h5py as h5
 from ptsampler import PTSampler
-import pytwalk
 import scipy.linalg as sl
 import argparse
 import os, time
