@@ -1,6 +1,7 @@
 from __future__ import division
 import numpy as np
 import scipy.linalg as sl
+import scipy.special as ss
 from scipy.optimize import minimize_scalar
 import PALutils
 import time
@@ -40,13 +41,69 @@ def fpStat(psr, f0):
         for jj in range(2):
             for kk in range(2):
                 M[jj,kk] = np.dot(A[jj,:], np.dot(p.invCov, A[kk,:]))
-                
+        
         # take inverse of M
         Minv = np.linalg.inv(M)
         fstat += 0.5 * np.dot(N, np.dot(Minv, N))
 
     # return F-statistic
     return fstat
+
+def marginalizedPulsarPhaseLike(psr, theta, phi, phase, inc, psi, freq, h, maximize=False):
+    """ 
+    Compute the log-likelihood marginalized over pulsar phases
+
+    @param psr: List of pulsar object instances
+    @param theta: GW polar angle [radian]
+    @param phi: GW azimuthal angle [radian]
+    @param phase: Initial GW phase [radian]
+    @param inc: GW inclination angle [radian]
+    @param psi: GW polarization angle [radian]
+    @param freq: GW initial frequency [Hz]
+    @param h: GW strain
+    @param maximize: Option to maximize over pulsar phases instead of marginalize
+
+    """
+
+    # get number of pulsars
+    npsr = len(psr)
+       
+    # get c and d
+    c = np.cos(phase)
+    d = np.sin(phase)
+
+    # construct xi = M**5/3/D and omega
+    xi = 0.25 * np.sqrt(5/2) * (np.pi*freq)**(-2/3) * h
+    omega = np.pi*freq
+
+    lnlike = 0
+    for ct, pp in enumerate(psr):
+
+        # compute relevant inner products
+        cip = np.dot(np.cos(2*omega*pp.toas), np.dot(pp.invCov, pp.res)) 
+        sip = np.dot(np.sin(2*omega*pp.toas), np.dot(pp.invCov, pp.res))
+        N = np.dot(np.cos(2*omega*pp.toas), np.dot(pp.invCov, np.cos(2*omega*pp.toas)))
+
+        # compute fplus and fcross
+        fplus, fcross, cosMu = PALutils.createAntennaPatternFuncs(pp, theta, phi)
+
+        # mind you p's and q's
+        p = (1+np.cos(inc)**2) * (fplus*np.cos(2*psi) + fcross*np.sin(2*psi))
+        q = 2*np.cos(inc) * (fplus*np.sin(2*psi) - fcross*np.cos(2*psi))
+
+        # construct X Y and Z
+        X = -xi/omega**(1/3) * (p*sip + q*cip - 0.5*xi/omega**(1/3)*N*c*(p**2+q**2))
+        Y = -xi/omega**(1/3) * (q*sip - p*cip - 0.5*xi/omega**(1/3)*N*d*(p**2+q**2))
+        Z = xi/omega**(1/3) * ((p*c+q*d)*sip - (p*d-q*c)*cip \
+                        -0.5*xi/omega**(1/3)*N*(p**2+q**2))
+
+        # add to log-likelihood
+        if maximize:
+            lnlike += Z + np.sqrt(X**2 + Y**2)
+        else:
+            lnlike += Z + np.log(ss.iv(0, np.sqrt(X**2 + Y**2)))
+
+    return lnlike
 
 
 def optStat(psr, ORF, gam=4.33333):
@@ -550,9 +607,9 @@ def modelIndependentFullPTA(psr, F, s, rho, kappa, efac, equad, ORF):
 
     logLike = -0.5 * (logdet_Phi + logdet_Sigma) + 0.5 * (np.dot(d, expval2)) + loglike1
 
-    print 'Total time: {0}'.format(time.time() - tstart)
-    print 'Matrix construction time: {0}'.format(tmatrix)
-    print 'Inversion time: {0}\n'.format(tinverse)
+    #print 'Total time: {0}'.format(time.time() - tstart)
+    #print 'Matrix construction time: {0}'.format(tmatrix)
+    #print 'Inversion time: {0}\n'.format(tinverse)
 
 
     return logLike
@@ -665,9 +722,16 @@ def modelIndependentFullPTANoisePL(psr, F, s, f, rho, Ared, gred, efac, equad, O
     tstart3 = time.time()
             
     # cholesky decomp for second term in exponential
-    cf = sl.cho_factor(Sigma)
-    expval2 = sl.cho_solve(cf, d)
-    logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
+    try:
+        cf = sl.cho_factor(Sigma)
+        expval2 = sl.cho_solve(cf, d)
+        logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
+
+    except np.linalg.LinAlgError:
+        print 'Cholesky Decomposition Failed!! Using SVD instead'
+        u,s,v = sl.svd(Sigma)
+        expval2 = np.dot(u, 1/s*np.dot(u.T, d))
+        logdet_Sigma = np.sum(np.log(s))
 
     tinverse = time.time() - tstart3
 

@@ -32,6 +32,10 @@ parser.add_argument('--equad', dest='equad', action='store_true', default=False,
                    help='Include EQUAD as search parameter (default = False, ie. EQUAD = 0)')
 parser.add_argument('--best', dest='best', action='store', type=int, default=0,
                    help='Only use best pulsars based on weighted rms (default = 0, use all)')
+parser.add_argument('--block', dest='block', action='store', type=int, default=0,
+                   help='How many parameters to update at each iteration (default = 0, use all)')
+parser.add_argument('--scale', dest='scale', action='store', type=float, default=1,
+                   help='Scale factor on jump covariance matrix(default = 1, native scaling)')
 
 
 
@@ -153,7 +157,13 @@ def jumpProposals(x, iter, beta):
     mem = 1001
 
     # get scale
-    scale = 0.5
+    scale = args.scale
+
+    # get block size
+    if args.block:
+        block = args.block
+    else:
+        block = ndim
 
     # medium size jump every 1000 steps
     if np.random.rand() < 1/1000:
@@ -179,7 +189,7 @@ def jumpProposals(x, iter, beta):
     y = np.dot(U.T, x)
 
     # make correlated componentwise adaptive jump
-    ind = np.unique(np.random.randint(0, ndim, 15))
+    ind = np.unique(np.random.randint(0, ndim, block))
     neff = len(ind)
     cd = 2.4 * np.sqrt(1/beta) / np.sqrt(neff) * scale
     y[ind] = y[ind] + np.random.randn(neff) * cd * np.sqrt(S[ind])
@@ -191,8 +201,8 @@ def jumpProposals(x, iter, beta):
 ndim = 2 + 4*npsr
 
 # set up temperature ladder
-ntemps = 8
-nthreads = 4
+ntemps = 1
+nthreads = 1
 tstep = 1.4
 Tmin = 1
 
@@ -261,8 +271,8 @@ if args.powerlaw:
 
     # pick starting values
     p0 = np.zeros((ntemps,ndim))
-    p0[:,0] = np.random.uniform(0, 0.1, ntemps)
-    p0[:,1] = np.random.uniform(4.0, 4.6, ntemps)
+    p0[:,0] = np.random.uniform(1, 10, ntemps)
+    p0[:,1] = np.random.uniform(4.33, 4.334, ntemps)
     for ii in range(npsr):
         p0[:,ii+2] = np.random.uniform(0.95, 1.05, ntemps)
         p0[:,ii+2+npsr] = np.random.uniform(-8, -6, ntemps)
@@ -279,8 +289,8 @@ if args.powerlaw:
     cov_diag[0] = 0.1 # GW amplitude initial jump size
     cov_diag[1] = 0.1   # GW spectral index initial jump size
     for ii in range(npsr):
-        cov_diag[2+ii] = 0.01        # EFAC initial jump size
-        cov_diag[2+npsr+ii] = 0.05   # log EQUAD initial jump size
+        cov_diag[2+ii] = 0.1        # EFAC initial jump size
+        cov_diag[2+npsr+ii] = 0.1   # log EQUAD initial jump size
         cov_diag[2+2*npsr+ii] = 0.1 # log Ared initial jump size
         cov_diag[2+3*npsr+ii] = 0.1 # log gred initial jump size
 
@@ -315,7 +325,7 @@ else:
     def logprior(x):
 
         rho = x[0:args.nmodes]
-        efac = x[args.nmodes:(2+npsr)]
+        efac = x[args.nmodes:(args.nmodes+npsr)]
         lequad = x[(args.nmodes+npsr):(args.nmodes+2*npsr)]
         lAred = x[(args.nmodes+2*npsr):(args.nmodes+3*npsr)]
         gred = x[(args.nmodes+3*npsr):(args.nmodes+4*npsr)]

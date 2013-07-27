@@ -18,16 +18,6 @@ parser.add_argument('--h5File', dest='h5file', action='store', type=str, require
                    help='Full path to hdf5 file containing PTA data')
 parser.add_argument('--outDir', dest='outDir', action='store', type=str, default='./',
                    help='Full path to output directory (default = ./)')
-parser.add_argument('--nmodes', dest='nmodes', action='store', type=int, default=10,
-                   help='number of fourier modes to use (default=10)')
-parser.add_argument('--powerlaw', dest='powerlaw', action='store_true', default=False,
-                   help='Use power law model (default = False)')
-parser.add_argument('--nored', dest='nored', action='store_true', default=False,
-                   help='Only use GWB, no additional red noise (default = False)')
-parser.add_argument('--efac', dest='efac', action='store_true', default=False,
-                   help='Include EFAC as search parameter (default = False, ie. EFAC = 1)')
-parser.add_argument('--equad', dest='equad', action='store_true', default=False,
-                   help='Include EQUAD as search parameter (default = False, ie. EQUAD = 0)')
 parser.add_argument('--best', dest='best', action='store', type=int, default=0,
                    help='Only use best pulsars based on weighted rms (default = 0, use all)')
 
@@ -82,15 +72,6 @@ tref = np.min(tt)
 for p in psr:
     p.toas -= tref
 
-# get Tmax
-Tmax = np.max([p.toas.max() - p.toas.min() for p in psr])
-
-# initialize fourier design matrix
-F = [PALutils.createfourierdesignmatrix(p.toas, args.nmodes, Tspan=Tmax) for p in psr]
-
-if args.powerlaw:
-    tmp, f = PALutils.createfourierdesignmatrix(p.toas, args.nmodes, Tspan=Tmax, freq=True)
-
 # get G matrices
 for p in psr:
     p.G = PALutils.createGmatrix(p.dmatrix)
@@ -106,51 +87,9 @@ for ii in range(len(fsearch)):
 fmaxlike = fsearch[np.argmax(fpstat)]
 print 'Maximum likelihood from f-stat search = {0}\n'.format(fmaxlike)
 
-# now we don't need lots of inverse covariance matrices floating around
-for p in psr:
-    p.invCov = None 
 
-
-# pre compute diagonalized efac + equad white noise model
-Diag = []
-projList = []
-print 'Pre-Computing white noise covariances'
-for ct, p in enumerate(psr):
-    efac = np.dot(p.G.T, np.dot(np.diag(p.err**2), p.G))
-    equad = np.dot(p.G.T, p.G)
-    L = np.linalg.cholesky(equad)
-    Linv = np.linalg.inv(L)
-    sand = np.dot(Linv, np.dot(efac, Linv.T))
-    u,s,v = np.linalg.svd(sand)
-    Diag.append(s)
-    proj = np.dot(u.T, np.dot(Linv, p.G.T))
-    projList.append(proj)
-
-    # project residuals onto new basis
-    p.res = np.dot(proj, p.res)
-    F[ct] = np.dot(proj, F[ct])
-
-
-# get ORF matrix
-ORF = PALutils.computeORFMatrix(psr)/2
-
-# fill in kappa with [] TODO: this is a hack for now to not include additional red noise
-if args.nored:
-    kappa = [ [] for jj in range(npsr)]
-    Ared = np.zeros(npsr)
-    gred = np.zeros(npsr)
     
 # prior ranges
-emin = 0.1
-emax = 5
-qmin = -8
-qmax = -5
-lAmin = -17
-lAmax = -11
-Amin = 0
-Amax = 5
-gamMin = 0
-gamMax = 7
 thmin = phasemin = incmin = psimin = 0
 thmax = incmax = np.pi
 psimax = np.pi/2
@@ -160,23 +99,17 @@ ldmin = -4
 ldmax = 4
 lmmin = 7
 lmmax = 9
+hmin = 0
+hmax = 10
 lfmin = -8.5
 lfmax = -7.5
 
 # set minimum and maximum parameter ranges
-pmin = np.array([thmin, phimin, lfmin, lmmin, psimin, incmin, phasemin])
-pmax = np.array([thmax, phimax, lfmax, lmmax, psimax, incmax, phasemax])
+pmin = np.array([thmin, phimin, lfmin, hmin, psimin, incmin, phasemin])
+pmax = np.array([thmax, phimax, lfmax, hmax, psimax, incmax, phasemax])
 
 # log prior function
 def logprior(x):
-
-    theta = x[0]
-    phi = x[1]
-    lf = x[2]
-    lmc = x[3]
-    psi = x[4]
-    inc = x[5]
-    phase = x[6]
 
     if np.all(x < pmax) and np.all(x > pmin):
         return np.sum(np.log(1/(pmax-pmin)))
@@ -187,30 +120,18 @@ def logprior(x):
 def loglike(x):
 
 
-    efac = np.ones(npsr)
-    equad = np.zeros(npsr)
     theta = x[0]
     phi = x[1]
     f = 10**x[2]
-    mc = 10**x[3]
+    h = x[3]*1e-14
     psi = x[4]
     inc = x[5]
     phase = x[6]
-    dist = 1
         
-    loglike = 0
-    for ct, p in enumerate(psr):
+    loglike = PALLikelihoods.marginalizedPulsarPhaseLike(psr, theta, phi, phase, inc, psi, f, h, maximize=True)
 
-        # make waveform with no pulsar term
-        s = PALutils.createResiduals(p, theta, phi, mc, dist, f, phase, psi, inc, \
-                 psrTerm=False)
+    #print loglike
 
-        # project onto white noise basis
-        s = np.dot(projList[ct], s)
-
-        loglike += np.sum(p.res*s/(efac[ct]*Diag[ct] + equad[ct]**2))
-        loglike -= 0.5 * np.sum(s**2/(efac[ct]*Diag[ct] + equad[ct]**2))
-   
     if np.isnan(loglike):
         print 'NaN log-likelihood. Not good...'
         return -np.inf
@@ -297,7 +218,7 @@ ndim = 7
 
 # set up temperature ladder
 ntemps = 5
-nthreads = 2
+nthreads = 4
 tstep = 1.8
 Tmin = 1
 
@@ -311,6 +232,7 @@ for ii in range(ntemps):
 
 # set initial frequency to be maximum likelihood value
 p0[:,2] = np.log10(fmaxlike)
+p0[:,3] = 1
 
 # initialize covariance matrix for jumps
 global cov, M2, mu, U, S
@@ -320,7 +242,7 @@ cov_diag = np.zeros(ndim)
 cov_diag[0] = 0.1
 cov_diag[1] = 0.1
 cov_diag[2] = 0.01
-cov_diag[3] = 0.05
+cov_diag[3] = 0.1
 cov_diag[4:] = 0.01
 cov = np.diag(cov_diag**2)
 U, S, V = np.linalg.svd(cov)

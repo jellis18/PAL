@@ -534,14 +534,13 @@ jumps.randomizeProposalCycle()
 ndim = 8 + npsr
 
 # set up temperature ladder
-ntemps = 4
+ntemps = 5
 nthreads = 4
-Tmax = 10
+tstep = 1.8
 Tmin = 1
 
-# exponentially spaced betas
-T = np.logspace(np.log(Tmin), np.log(Tmax), ntemps, base=np.exp(1))
-betas = 1/T
+# geometrically spaced betas
+betas = np.exp(np.linspace(0, -(ntemps-1)*np.log(tstep), ntemps))
 
 # pick starting values
 p0 = np.zeros((ntemps, ndim))
@@ -588,7 +587,7 @@ covfile = args.outDir + '/cov.npy'
 
 # run sampler
 N = 1000000
-isave = 10000   # save every isave iterations
+isave = 5000   # save every isave iterations
 thin = 1
 ct = 0
 print 'Beginning Sampling in {0} dimensions\n'.format(ndim)
