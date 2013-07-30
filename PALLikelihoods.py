@@ -98,6 +98,7 @@ def marginalizedPulsarPhaseLike(psr, theta, phi, phase, inc, psi, freq, h, maxim
                         -0.5*xi/omega**(1/3)*N*(p**2+q**2))
 
         # add to log-likelihood
+        print X, Y
         if maximize:
             lnlike += Z + np.sqrt(X**2 + Y**2)
         else:

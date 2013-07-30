@@ -262,7 +262,7 @@ def updateRecursive(chain, M2, mu, iter, mem):
 def jumpProposals(x, iter, beta):
 
     # how often to update covariance matrix
-    mem = 1010
+    mem = 1033
 
     global cov, M2, mu, U, S
 
@@ -271,9 +271,8 @@ def jumpProposals(x, iter, beta):
         cov, M2, mu = updateRecursive(sampler.chain[0,(iter-mem-1):(iter-1),:], M2, mu, iter-1, mem)
         
         # compute svd
-        c = cov[0:8, 0:8]
         try:
-            U, S, v = np.linalg.svd(c)
+            U, S, v = np.linalg.svd(cov)
         except np.linalg.linalg.linalgerror:
             print 'warning: svd did not converge, not updating covariance matrix'
 
@@ -286,7 +285,7 @@ def jumpProposals(x, iter, beta):
 def covarianceJumpProposal(x, iter, beta):
 
     # get scale
-    scale = 1/5
+    scale = 1
 
     # medium size jump every 1000 steps
     if np.random.rand() < 1/1000:
@@ -297,31 +296,33 @@ def covarianceJumpProposal(x, iter, beta):
         scale = 50
 
     # get parmeters in new diagonalized basis
-    subx = x[0:8]
-    y = np.dot(U.T, subx)
+    y = np.dot(U.T, x)
 
     # make correlated componentwise adaptive jump
-    ind = np.unique(np.random.randint(0, 8, 8))
+    if iter < 100000:
+        ind = np.unique(np.random.randint(0, 8, 1))
+    else:
+        ind = np.unique(np.random.randint(0, 8, ndim))
+
     neff = len(ind)
     cd = 2.4 * np.sqrt(1/beta) / np.sqrt(neff) * scale
-    y[ind] = y[ind] + np.random.randn(neff) * cd * np.sqrt(S[ind])
+    #y[ind] = y[ind] + np.random.randn(neff) * cd * np.sqrt(S[ind])
     q = x.copy()
-    q[0:8] = np.dot(U, y)
+    q[ind] = q[ind] + np.random.randn(neff) * cd * np.sqrt(np.diag(cov[ind,ind]))
+    #q = np.dot(U, y)
 
     # need to make sure that we keep the pulsar phase constant, plus small offset
 
     # get parameters before jump
-    freq0 = 10**x[2]
-    pdist = q[8:]
+    omega0 = 2*np.pi*10**x[2]
+    L0 = x[8:] * 1.0267e11 
     phi0 = x[1]
     theta0 = x[0]
     
-    freq1 = 10**q[2]
+    omega1 = 2*np.pi*10**q[2]
+    L1 = q[8:] * 1.0267e11 
     phi1 = q[1]
     theta1 = q[0]
-
-    # put pulsar distance in correct units
-    pdist *= 1.0267e11  
 
     # get cosMu
     cosMu0 = np.zeros(npsr)
@@ -331,13 +332,24 @@ def covarianceJumpProposal(x, iter, beta):
         tmp1, temp2, cosMu1[ii] = PALutils.createAntennaPatternFuncs(psr[ii], theta1, phi1)
     
     # construct new pulsar distances to keep the pulsar phases constant
-    sigma = np.sqrt(1/beta) * 0.0
-    L_new = (freq0*pdist*(1-cosMu0) + np.random.randn(npsr)*sigma)/(freq1*(1-cosMu1))
+    sigma = np.sqrt(1/beta) * 0.0 * np.random.randn(npsr)
+    phase0 = omega0*L0*(1-cosMu0)
+    phase1 = omega1*L1*(1-cosMu1)
+    L_new = L1 - (np.mod(phase1, 2*np.pi) - np.mod(phase0, 2*np.pi) + sigma)/(omega1*(1-cosMu1)) 
+
+    #phasenew = omega1*L_new*(1-cosMu1)
+    #print 'New phase = ', np.mod(phasenew ,2*np.pi) 
+    #print 'Old phase = ', np.mod(phase0,2*np.pi)
+    #print 'New L = ', L_new 
+    #print 'Old L = ', L0, '\n'
 
     # convert back to Kpc
     L_new /= 1.0267e11 
 
     q[8:] = L_new
+
+    #print x[0]
+    #print q[0], '\n'
 
     return q
 
@@ -347,7 +359,7 @@ def smallPulsarPhaseJump(x, iter, beta):
     q = x.copy()
 
     # jump size
-    sigma = np.sqrt(beta) * 0.1
+    sigma = np.sqrt(beta) * 0.5
 
     # pick pulsar index at random
     ind = np.random.randint(0, npsr, npsr)
@@ -521,7 +533,7 @@ jumps.addProposalToCycle(covarianceJumpProposal, BIG)
 jumps.addProposalToCycle(smallPulsarPhaseJump, BIG)
 
 # add large jump in pulsar phase
-jumps.addProposalToCycle(bigPulsarPhaseJump, BIG)
+jumps.addProposalToCycle(bigPulsarPhaseJump, 2*SMALL)
 
 # randomize cycle
 jumps.randomizeProposalCycle()
@@ -534,25 +546,13 @@ jumps.randomizeProposalCycle()
 ndim = 8 + npsr
 
 # set up temperature ladder
-ntemps = 5
-nthreads = 4
+ntemps = 1
+nthreads = 1
 tstep = 1.8
 Tmin = 1
 
 # geometrically spaced betas
 betas = np.exp(np.linspace(0, -(ntemps-1)*np.log(tstep), ntemps))
-
-# pick starting values
-p0 = np.zeros((ntemps, ndim))
-for ii in range(ntemps):
-    p0[ii,0:8] = pmin + np.random.rand(ndim-npsr) * (pmax - pmin)
-
-# start at measured pulsar distance
-for ct, p in enumerate(psr):
-    p0[:,8+ct] = p.dist
-
-# set initial frequency to be maximum likelihood value
-p0[:,2] = np.log10(fmaxlike)
 
 # initialize covariance matrix for jumps
 global cov, M2, mu, U, S
@@ -561,14 +561,30 @@ mu = np.zeros(ndim)
 cov_diag = np.zeros(ndim)
 cov_diag[0] = 0.1
 cov_diag[1] = 0.1
-cov_diag[2] = 0.01
-cov_diag[3] = 0.05
-cov_diag[4] = 0.05
+cov_diag[2] = 0.005
+cov_diag[3] = 0.1
+cov_diag[4] = 0.1
 cov_diag[5:8] = 0.01
 for ct, p in enumerate(psr):
-    cov_diag[8+ct] = p.distErr/5
-cov = np.diag(cov_diag**2)
-U, S, V = np.linalg.svd(cov[0:8,0:8])
+    cov_diag[8+ct] = p.distErr/2
+cov = np.diag((cov_diag)**2)
+U, S, V = np.linalg.svd(cov)
+
+inj = [np.pi/2-0.5, 1, np.log10(2e-8), np.log10(6e8), \
+       np.log10(3.82) ,np.pi/8, np.pi/2, np.pi/2, 1, 0.74, 2.4, 1.19, 0.51]
+
+# pick starting values
+p0 = np.zeros((ntemps, ndim))
+for ii in range(ntemps):
+    #p0[ii,0:8] = pmin + np.random.rand(ndim-npsr) * (pmax - pmin)
+    p0[ii,0:8] = np.array(inj)[0:8] + np.random.randn() * 5 * np.sqrt(np.diag(cov[0:8,0:8]))
+
+# start at measured pulsar distance
+for ct, p in enumerate(psr):
+    p0[:,8+ct] = p.dist
+
+# set initial frequency to be maximum likelihood value
+#p0[:,2] = np.log10(fmaxlike)
 
 # no cyclic variables
 cyclic = np.zeros(ndim)

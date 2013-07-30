@@ -55,6 +55,8 @@ parser.add_option('--gwbIndex', dest='gwbIndex', action='store', type=float, def
                    help='GWB amplitude (default = 4.33)')
 parser.add_option('--noise', dest='noise', action='store_true', default=False,
                    help='Add noise based on real data values? (default = False)')
+parser.add_option('--seed', dest='seed', action='store', type=int, default=0,
+                   help='Random number seed for noise realizations (default = 0, no seed)')
 parser.add_option('--DM', dest='DM', action='store_true', default=False,
                    help='Add DM based on real data values? (default = False)')
 parser.add_option('--tim', dest='tim', action='store', type=str, default=None,
@@ -84,7 +86,7 @@ pfile = h5.File(h5copy, 'r+')
 pulsargroup = pfile['Data']['Pulsars']
 
 # fill in pulsar class
-psr = [PALpulsarInit.pulsar(pulsargroup[key],addNoise=True) for key in pulsargroup]
+psr = [PALpulsarInit.pulsar(pulsargroup[key],addNoise=True, addGmatrix=True) for key in pulsargroup]
 
 # number of pulsars
 npsr = len(psr)
@@ -203,7 +205,12 @@ if args.noise:
             # cholesky decomp
             L = np.linalg.cholesky(cov)
 
-            # zero mean unit variance 
+            # set random number seed
+            if args.seed:
+                print 'Using fixed random number seed!'
+                np.random.seed(seed=args.seed*(ct+1))
+            
+            # zero mean unit variance
             w = np.random.randn(p.ntoa)
 
             # get induced residuals
@@ -220,6 +227,12 @@ if args.noise == False:
     print 'Using only white noise based on error bars'
     # add to site arrival times of pulsar
     for ct,p in enumerate(pp):
+        
+        # set random number seed
+        if args.seed:
+            print 'Using fixed random number seed!'
+            np.random.seed(args.seed*(ct+1))
+
         p.stoas[:] += p.toaerrs*1e-6 * np.random.randn(p.nobs)/86400
 
         # add correct "inverse covariance matrix" to hdf5 file
