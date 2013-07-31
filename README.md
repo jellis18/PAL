@@ -5,7 +5,7 @@
 Much of the code is still under construction; however, you will need the following 
 to run all of the code in its existing state:
 
-* Python 2.7
+* Python 2.6 or 2.7 (has not been tested with Python 3)
 * Numpy, Scipy, Matplotlib
 * [h5py] (http://www.h5py.org)
 * A recent version of [tempo2] (http://www.atnf.csiro.au/research/pulsar/tempo2/index.php?n=Main.Download)
