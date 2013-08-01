@@ -100,9 +100,9 @@ ldmax = 4
 lmmin = 7
 lmmax = 9
 hmin = 0
-hmax = 10
+hmax = 1000
 lfmin = -8.5
-lfmax = -7.5
+lfmax = -6.5
 
 # set minimum and maximum parameter ranges
 pmin = np.array([thmin, phimin, lfmin, hmin, psimin, incmin, phasemin])
@@ -185,7 +185,7 @@ def jumpProposals(x, iter, beta):
     mem = 1010
 
     # get scale
-    scale = 1/10
+    scale = 1/5
 
     # medium size jump every 1000 steps
     if np.random.rand() < 1/1000:
@@ -217,8 +217,8 @@ def jumpProposals(x, iter, beta):
 ndim = 7
 
 # set up temperature ladder
-ntemps = 5
-nthreads = 4
+ntemps = 1
+nthreads = 1
 tstep = 1.8
 Tmin = 1
 
@@ -233,7 +233,8 @@ for ii in range(ntemps):
 # set initial frequency to be maximum likelihood value
 p0[:,2] = np.log10(fmaxlike)
 p0[:,3] = 1
-
+p0[:,1] = 1
+p0[:,0] = 1
 # initialize covariance matrix for jumps
 global cov, M2, mu, U, S
 M2 = np.zeros((ndim, ndim))

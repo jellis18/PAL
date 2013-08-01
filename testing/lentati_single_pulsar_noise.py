@@ -126,10 +126,10 @@ if args.powerlaw == False and args.nmodes != 0 and args.fc and args.broken == Fa
         qmax = -5
         lAmin = -20
         lAmax = -10
-        gamMin = 0
+        gamMin = -7
         gamMax = 7
         lfcmin = -12
-        lfcmax = -3
+        lfcmax = -7
 
         # convert from hypercube
         cube[0] = emin + cube[0] * (emax - emin)
