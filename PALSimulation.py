@@ -240,6 +240,10 @@ if args.noise == False:
         tmp = np.dot(psr[ct].G.T, np.dot(white, psr[ct].G))
         invCov = np.dot(psr[ct].G, np.dot(np.linalg.inv(tmp), psr[ct].G.T))
         pulsargroup[psr[ct].name]['invCov'][...] = invCov
+        pulsargroup[psr[ct].name]['Amp'][...] = 0
+        pulsargroup[psr[ct].name]['gam'][...] = 4.33
+        pulsargroup[psr[ct].name]['efac'][...] = 1
+        pulsargroup[psr[ct].name]['equad'][...] = 0
         psr[ct].invCov = invCov
 
 # add single source put after all noise simulation so we can get accurate snr

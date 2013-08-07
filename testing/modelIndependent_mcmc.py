@@ -315,8 +315,8 @@ else:
     qmax = -5
     lAmin = -17
     lAmax = -11
-    rhomin = -20
-    rhomax = -10
+    rhomin = -18
+    rhomax = -8
     gamMin = 0
     gamMax = 7
 

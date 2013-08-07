@@ -30,6 +30,8 @@ parser.add_argument('--fc', dest='fc', action='store_true', default=False,
                    help='Use power law model with cross over frequency (default = False)')
 parser.add_argument('--broken', dest='broken', action='store_true', default=False,
                    help='Use power law with two spectral indices and a cross over frequency (default = False)')
+parser.add_argument('--single', dest='single', action='store_true', default=False,
+                   help='Have one frequency and amplitude free to look for single frequency source (default = False)')
 
 
 # parse arguments
@@ -89,7 +91,7 @@ if args.powerlaw and args.nmodes != 0:
         qmax = -5
         lAmin = -20
         lAmax = -10
-        gamMin = -7
+        gamMin = 0
         gamMax = 7
 
         # convert from hypercube
@@ -115,7 +117,7 @@ if args.powerlaw and args.nmodes != 0:
     n_params = 4
     nlive = 500
 
-if args.powerlaw == False and args.nmodes != 0 and args.fc and args.broken == False:
+if args.powerlaw == False and args.nmodes != 0 and args.fc and args.broken == False and args.single == False:
     print 'Parameterizing Power spectrum coefficients by a power law with a cross over frequency'
 
     def myprior(cube, ndim, nparams):
@@ -156,7 +158,7 @@ if args.powerlaw == False and args.nmodes != 0 and args.fc and args.broken == Fa
     n_params = 5
     nlive = 500
 
-if args.powerlaw == False and args.nmodes != 0 and args.broken:
+if args.powerlaw == False and args.nmodes != 0 and args.broken and args.single == False:
     print 'Parameterizing Power spectrum coefficients by a broken power law'
 
     def myprior(cube, ndim, nparams):
@@ -201,18 +203,18 @@ if args.powerlaw == False and args.nmodes != 0 and args.broken:
 
     
 # parameterize by independent coefficienta
-if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.broken == False:
+if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.broken == False and args.single == False:
 
     print 'Parameterizing Power spectrum coefficients by {0} independent coefficients'.format(args.nmodes)
     
     def myprior(cube, ndim, nparams):
         # define parameter ranges
         emin = 0.1
-        emax = 10
+        emax = 5
         qmin = -10
         qmax = -5
-        rhomin = -20
-        rhomax = 0
+        rhomin = -18
+        rhomax = -8
 
         # convert from hypercube
         cube[0] = emin + cube[0] * (emax - emin)
@@ -238,14 +240,64 @@ if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.bro
     n_params = args.nmodes + 2
     nlive = 500
 
-if args.powerlaw == False and args.nmodes == 0 and args.fc == False and args.broken == False:
+# parameterize by independent coefficients plus single
+if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.broken == False and args.single == True:
+
+    print 'Parameterizing Power spectrum coefficients by {0} independent coefficients and one single source'.format(args.nmodes)
+    
+    def myprior(cube, ndim, nparams):
+        # define parameter ranges
+        emin = 0.1
+        emax = 5
+        qmin = -10
+        qmax = -5
+        rhomin = -18
+        rhomax = -8
+        fmin = np.log10((args.nmodes+1)/(psr.toas.max() - psr.toas.min()))
+        fmax = np.log10(5e-6)
+
+        # convert from hypercube
+        cube[0] = emin + cube[0] * (emax - emin)
+        cube[1] = qmin + cube[1] * (qmax - qmin)
+        cube[2] = fmin + cube[2] * (fmax - fmin)
+        for ii in range(3, ndim):
+            cube[ii] = rhomin + cube[ii] * (rhomax - rhomin)
+
+    def myloglike(cube, ndim, nparams):
+
+        efac = cube[0]
+        equad = 10**cube[1]
+        fs = 10**cube[2]
+        rho = np.zeros(ndim-3)
+        for ii in range(ndim-3):
+            rho[ii] = cube[ii+3]
+
+        F1 = list(PALutils.createfourierdesignmatrix(psr.toas, args.nmodes).T)
+        F1.append(np.cos(2*np.pi*fs*psr.toas))
+        F1.append(np.sin(2*np.pi*fs*psr.toas))
+
+        F = np.array(F1).T
+
+        F = np.dot(proj, F)
+       
+        loglike = PALLikelihoods.lentatiMarginalizedLike(psr, F, s, rho, efac, equad)
+
+        #print efac, rho, loglike
+
+        return loglike
+
+    # number of dimensions our problem has
+    n_params = args.nmodes + 3 + 1
+    nlive = 500
+
+if args.powerlaw == False and args.nmodes == 0 and args.fc == False and args.broken == False and args.single == False:
 
     print 'Only using white noise model!'
 
     def myprior(cube, ndim, nparams):
         # define parameter ranges
         emin = 0.1
-        emax = 10
+        emax = 5
         qmin = -10
         qmax = -5
 
@@ -270,10 +322,18 @@ if args.powerlaw == False and args.nmodes == 0 and args.fc == False and args.bro
 
 
 # run MultiNest
+#pymultinest.run(myloglike, myprior, n_params, resume = False, \
+#                verbose = True, sampling_efficiency = 0.3, \
+#                outputfiles_basename =  args.outDir+'/test', \
+#                n_iter_before_update=5, n_live_points=nlive)
+
+# Importance nested sampling
+nlive = 500
 pymultinest.run(myloglike, myprior, n_params, resume = False, \
-                verbose = True, sampling_efficiency = 0.1, \
+                verbose = True, sampling_efficiency = 0.05, \
                 outputfiles_basename =  args.outDir+'/test', \
-                n_iter_before_update=5, n_live_points=nlive)
+                n_iter_before_update=5, n_live_points=nlive, \
+                const_efficiency_mode=True, importance_nested_sampling=True)
 
 
 

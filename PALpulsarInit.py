@@ -4,7 +4,7 @@ import numpy as np
 import sys, os, glob
 import h5py as h5
 import libstempo as t2
-import PALutils as pal_utils
+import PALutils 
 
 # class defninitions to initialize PTA data in the hdf5 file format.
 
@@ -99,7 +99,7 @@ class PulsarFile(object):
         if dailyAverage:
 
             # get average quantities
-            toas, qmatrix, errs, dmatrix, freqs, bands = pal_utils.dailyAverage(t2pulsar)
+            toas, qmatrix, errs, dmatrix, freqs, bands = PALutils.dailyAverage(t2pulsar)
 
             # construct new daily averaged residuals and designmatrix
             residuals = np.dot(qmatrix, residuals)
@@ -197,16 +197,16 @@ class PulsarFile(object):
         if dailyAverage:
 
             # get average quantities
-            toas, qmatrix, errs, dmatrix, freqs, bands = pal_utils.dailyAverage(t2pulsar)
+            toas, qmatrix, errs, dmatrix, freqs, bands = PALutils.dailyAverage(t2pulsar)
 
             # construct new daily averaged residuals and designmatrix
             toas *= 86400
             designmatrix = np.dot(qmatrix, dmatrix)
         
-        G = pal_utils.createGmatrix(designmatrix)
+        G = PALutils.createGmatrix(designmatrix)
 
         # create matrix of time lags
-        tm = pal_utils.createTimeLags(toas, toas, round=True)
+        tm = PALutils.createTimeLags(toas, toas, round=True)
 
         # now read noise file to get model and parameters
         file = open(noisefile,'r')
@@ -254,8 +254,8 @@ class PulsarFile(object):
                 DMgam = float(line.split()[-1])
 
         # cosstruct red and white noise covariance matrices
-        red = pal_utils.createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=fH)
-        white = pal_utils.createWhiteNoiseCovarianceMatrix(errs, efac, equad, tau=tau)
+        red = PALutils.createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=fH)
+        white = PALutils.createWhiteNoiseCovarianceMatrix(errs, efac, equad, tau=tau)
 
         # construct post timing model marginalization covariance matrix
         cov = red + white
@@ -393,6 +393,8 @@ class pulsar(object):
             elif key == "designmatrix":
                 self.dmatrix = pulsargroup[key].value
                 self.ntoa, self.nfit = self.dmatrix.shape
+                if addGmatrix:
+                    self.G = PALutils.createGmatrix(self.dmatrix)
             
             # design matrix
             elif key == "pname":
@@ -426,10 +428,6 @@ class pulsar(object):
                 if addNoise:
                     self.invCov = pulsargroup[key].value
 
-            # G matrix
-            elif key == "Gmatrix":
-                if addGmatrix:
-                    self.G = pulsargroup[key].value
 
             ## noise parameters ##
 
