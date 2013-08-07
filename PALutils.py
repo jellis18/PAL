@@ -567,6 +567,27 @@ def angularSeparation(theta1, phi1, theta2, phi2):
 
     return np.arccos(cosMu)
 
+def computeNormalizedCovarianceMatrix(cov):
+    """
+    Compute the normalized covariance matrix from the true covariance matrix
+
+    @param cov: covariance matrix
+
+    @return: cnorm: normalized covaraince matrix
+
+    """
+
+    # get size of array
+    ndim = cov.shape[0]
+    cnorm = np.zeros((ndim, ndim))
+
+    # compute normalized covariance matrix
+    for ii in range(ndim):
+        for jj in range(ndim):
+            cnorm[ii,jj] = cov[ii,jj]/np.sqrt(cov[ii,ii]*cov[jj,jj])
+
+    return cnorm 
+
 
 def createfourierdesignmatrix(t, nmodes, freq=False, Tspan=None):
     """
