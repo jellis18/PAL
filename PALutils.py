@@ -36,7 +36,7 @@ def createAntennaPatternFuncs(psr, gwtheta, gwphi):
     return fplus, fcross, cosMu
 
 def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=None, \
-                     psrTerm=True, evolve=True):
+                        pphase=None, psrTerm=True, evolve=True):
     """
     Function to create GW incuced residuals from a SMBMB as 
     defined in Ellis et. al 2012,2013.
@@ -50,7 +50,8 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=
     @param phase0: Initial Phase of GW source [radians]
     @param psi: Polarization of GW source [radians]
     @param inc: Inclination of GW source [radians]
-    @param pdist: Array of pulsar distances to use other than those in psr [kpc]
+    @param pdist: Pulsar distance to use other than those in psr [kpc]
+    @param pphase: Use pulsar phase to determine distance [radian]
     @param psrTerm: Option to include pulsar term [boolean] 
     @param evolve: Option to exclude evolution [boolean]
 
@@ -58,13 +59,15 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=
 
     """
 
-    # get values from pulsar object
-    toas = psr.toas
-    if pdist is None:
-        pdist = psr.dist
-
     # get antenna pattern funcs and cosMu
     fplus, fcross, cosMu = createAntennaPatternFuncs(psr, gwtheta, gwphi)
+    
+    # get values from pulsar object
+    toas = psr.toas
+    if pdist is None and pphase is None:
+        pdist = psr.dist
+    elif pdist is None and pphase is not None:
+        pdist = pphase/(2*np.pi*fgw*(1-cosMu)) / 1.0267e11
     
     # convert units
     mc *= 4.9e-6         # convert from solar masses to seconds
@@ -566,6 +569,21 @@ def angularSeparation(theta1, phi1, theta2, phi2):
     cosMu = np.dot(rhat1, rhat2)
 
     return np.arccos(cosMu)
+
+def weighted_values(values, probabilities, size):
+    """
+    Draw a weighted value based on its probability
+
+    @param values: The values from which to choose
+    @param probabilities: The probability of choosing each value
+    @param size: The number of values to return
+
+    @return: size values based on their probabilities
+
+    """
+
+    bins = np.add.accumulate(probabilities)
+    return values[np.digitize(np.random.random_sample(size), bins)]
 
 def computeNormalizedCovarianceMatrix(cov):
     """

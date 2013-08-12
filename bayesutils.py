@@ -364,7 +364,7 @@ def plotSkyMap(raSample, decSample, nside=64, contours=None, colorbar=True, \
         ax.plot(inj[0], inj[1], 'x', color='k', markersize=8, mew=2, mec='k')
 
     # add pulsars
-    if psrs:
+    if np.all(psrs):
         ax.plot(psrs[:,0], psrs[:,1], 'D', color='w', markersize=3, mew=1, mec='w')
 
     # add colorbar and title

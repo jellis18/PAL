@@ -2,6 +2,7 @@ from __future__ import division
 import numpy as np
 import scipy.linalg as sl
 import scipy.special as ss
+from scipy import integrate
 from scipy.optimize import minimize_scalar
 import PALutils
 import time
@@ -103,6 +104,106 @@ def marginalizedPulsarPhaseLike(psr, theta, phi, phase, inc, psi, freq, h, maxim
             lnlike += Z + np.sqrt(X**2 + Y**2)
         else:
             lnlike += Z + np.log(ss.iv(0, np.sqrt(X**2 + Y**2)))
+
+    return lnlike
+
+def marginalizedPulsarPhaseLikeNumerical(psr, theta, phi, phase, inc, psi, freq, h,\
+                                         maximize=False):
+    """ 
+    Compute the log-likelihood marginalized over pulsar phases
+
+    @param psr: List of pulsar object instances
+    @param theta: GW polar angle [radian]
+    @param phi: GW azimuthal angle [radian]
+    @param phase: Initial GW phase [radian]
+    @param inc: GW inclination angle [radian]
+    @param psi: GW polarization angle [radian]
+    @param freq: GW initial frequency [Hz]
+    @param h: GW strain
+    @param maximize: Option to maximize over pulsar phases instead of marginalize
+
+    """
+
+    tstart = time.time()
+
+    # get number of pulsars
+    npsr = len(psr)
+       
+    # construct xi = M**5/3/D and omega
+    xi = 0.25 * np.sqrt(5/2) * (np.pi*freq)**(-2/3) * h
+    omega = np.pi*freq
+    
+    # get a values from Ellis et al 2012
+    a1 = xi * ((1+np.cos(inc)**2)*np.cos(phase)*np.cos(2*psi) + \
+               2*np.cos(inc)*np.sin(phase)*np.sin(2*psi))
+    a2 = -xi * ((1+np.cos(inc)**2)*np.sin(phase)*np.cos(2*psi) - \
+                2*np.cos(inc)*np.cos(phase)*np.sin(2*psi))
+    a3 = xi * ((1+np.cos(inc)**2)*np.cos(phase)*np.sin(2*psi) - \
+               2*np.cos(inc)*np.sin(phase)*np.cos(2*psi))
+    a4 = -xi * ((1+np.cos(inc)**2)*np.sin(phase)*np.sin(2*psi) + \
+                2*np.cos(inc)*np.cos(phase)*np.cos(2*psi))
+
+    lnlike = 0
+    tip = 0
+    tint = 0
+    tmax = 0
+    for ct, pp in enumerate(psr):
+
+        tstartip = time.time()
+
+        # compute relevant inner products
+        N1 = np.dot(np.cos(2*omega*pp.toas), np.dot(pp.invCov, pp.res)) 
+        N2 = np.dot(np.sin(2*omega*pp.toas), np.dot(pp.invCov, pp.res))
+        M11 = np.dot(np.sin(2*omega*pp.toas), np.dot(pp.invCov, np.sin(2*omega*pp.toas)))
+        M22 = np.dot(np.cos(2*omega*pp.toas), np.dot(pp.invCov, np.cos(2*omega*pp.toas)))
+        M12 = np.dot(np.cos(2*omega*pp.toas), np.dot(pp.invCov, np.sin(2*omega*pp.toas)))
+
+        # compute fplus and fcross
+        fplus, fcross, cosMu = PALutils.createAntennaPatternFuncs(pp, theta, phi)
+
+        # mind your p's and q's
+        p = fplus*a1 + fcross*a3
+        q = fplus*a2 + fcross*a4
+
+        # constuct multipliers of pulsar phase terms
+        X = p*N1 + q*N2 + p**2*M11 + q**2*M22 + 2*p*q*M12
+        Y = p*N1 + q*N2 + 2*p**2*M11 + 2*q**2*M22 + 4*p*q*M12
+        Z = p*N2 - q*N1 + 2*(p**2-q**2)*M12 - 2*p*q*(M11-M22)
+        W = q**2*M11 + p**2*M22 -2*p*q*M12
+        V = p*q*(M11-M22) - (p**2-q**2)*M12
+        
+        #print X, Y, Z, W, V
+        tip += (time.time() - tstartip)
+
+        tstartint = time.time()
+
+        # find the maximum of argument of exponential function
+        phip = np.linspace(0, 2*np.pi, 10000)
+        arg = X - Y*np.cos(phip) + Z*np.sin(phip) + W*np.sin(phip)**2 + 2*V*np.cos(phip)*np.sin(phip)
+        maxarg = np.max(arg)
+
+        if maximize:
+            tmax += maxarg
+
+        else:
+
+            # define integrand for numerical integration
+            f = lambda phi: np.exp(X - Y*np.cos(phi) + Z*np.sin(phi) + \
+                    W*np.sin(phi)**2 + 2*V*np.cos(phi)*np.sin(phi) - maxarg)
+
+            # do numerical integration
+            integral = integrate.quad(f, 0, 2*np.pi)[0]
+            lnlike += maxarg + np.log(integral)
+
+            tint += (time.time() - tstartint)
+
+    print 'Loglike = {0}'.format(lnlike)
+    print 'Total Evaluation Time = {0} s'.format(time.time() - tstart)
+    print 'Total inner product evaluation Time = {0} s'.format(tip)
+    print 'Total Integration Time = {0} s\n'.format(tint)
+
+    if maximize:
+        lnlike = tmax
 
     return lnlike
 

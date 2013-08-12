@@ -98,13 +98,13 @@ print 'Maximum likelihood from f-stat search = {0}\n'.format(fmaxlike)
 
 # get determinant of covariance matrix for use in likelihood
 logdetTerm = []
-invCov = []
 for ct, p in enumerate(psr):
 
     efac = p.efac
     equad = p.equad
     Amp = p.Amp
     gam = p.gam
+    fH = p.fH
     
     #efac = 1.0
     #equad = 0
@@ -117,14 +117,11 @@ for ct, p in enumerate(psr):
 
     # get red noise covariance matrix
     tm = PALutils.createTimeLags(p.toas, p.toas)
-    red = PALutils.createRedNoiseCovarianceMatrix(tm, Amp, gam)
+    red = PALutils.createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=fH)
 
     C = np.dot(p.G.T, np.dot(red+white, p.G))
     cf = sl.cho_factor(C)
     logdetTerm.append(np.sum(2*np.log(np.diag(cf[0])))) #+ p.G.shape[1]*np.log(2*np.pi))
-    invterm = sl.cho_solve(cf, np.eye(cf[0].shape[1]))
-    invterm = np.linalg.inv(C)
-    invCov.append(np.dot(p.G, np.dot(invterm, p.G.T)))
 
 # get null model log-likelihood
 nullLike = 0
@@ -175,7 +172,7 @@ def logprior(x):
 # define log-likelihood
 def loglike(x):
 
-    #tstart = time.time()
+    tstart = time.time()
 
     theta = x[0]
     phi = x[1]
@@ -198,13 +195,10 @@ def loglike(x):
     loglike = 0
     for ct, p in enumerate(psr):
     
-        # solve for the pulsr distance to use in the waveform generator
-        fplus, fcross, cosMu = PALutils.createAntennaPatternFuncs(p, theta, phi)
-        pdist = pphase[ct]/(2*np.pi*f*(1-cosMu)) / 1.0267e11
 
         # make waveform with no frequency evolution
         s = PALutils.createResiduals(p, theta, phi, mc, dist, f, phase, psi, inc,\
-                                     pdist=pdist, evolve=False)
+                                     pphase=pphase[ct], evolve=False)
 
         diff = p.res - s
         loglike += -0.5 * logdetTerm[ct]
@@ -247,7 +241,7 @@ def updateRecursive(chain, M2, mu, iter, mem):
     except np.linalg.linalg.LinAlgError:
         print 'Warning: SVD did not converge, not updating covariance matrix'
 
-    return c, M2, mu, u, s
+    return c, M2, mu, s, u
 
 # define jump proposal function for use in MCMC
 def jumpProposals(x, iter, beta):
@@ -275,17 +269,35 @@ def jumpProposals(x, iter, beta):
     global cov, M2, mu, U, S
 
     # get parmeters in new diagonalized basis
-    y = np.dot(U.T, x)
+    #y = np.dot(U.T, x)
 
     # update covarinace matrix
     if (iter-1) % mem == 0 and (iter-1) != 0 and beta == 1:
-        cov, M2, mu, U, S = updateRecursive(sampler.chain[0,(iter-mem-1):(iter-1),:], M2, mu, iter-1, mem)
+        cov, M2, mu, S, U = updateRecursive(sampler.chain[0,(iter-mem-1):(iter-1),:], M2, mu, iter-1, mem)
+
+        # get normalized covariance matrix
+        #cnorm = PALutils.computeNormalizedCovarianceMatrix(cov)
+
+        # get eigenvalues and eigenvectors
+        #S, U = np.linalg.eigh(cnorm)
+
+        # form D matrix
+        #Dinv = np.diag(1/np.sqrt(np.diag(cov)))
+
+        # form new U matrix
+        #U = np.dot(Dinv, U)
+
+    # form uncorrelated parameters
+    y = np.dot(U.T, x)
+
 
     # make correlated componentwise adaptive jump
     ind = np.unique(np.random.randint(0, ndim, block))
+    #ind = PALutils.weighted_values(np.arange(ndim), S/np.sum(S), block)
     neff = len(ind)
     cd = 2.4 * np.sqrt(1/beta) / np.sqrt(neff) * scale
     y[ind] = y[ind] + np.random.randn(neff) * cd * np.sqrt(S[ind])
+    #q = np.dot(np.linalg.inv(U).T, y)
     q = np.dot(U, y)
 
     return q
@@ -343,9 +355,13 @@ cov_diag[0] = 0.1
 cov_diag[1] = 0.1
 cov_diag[2] = 0.005
 cov_diag[3] = 0.1
-cov_diag[4:] = 0.01
+cov_diag[4:] = 0.05
 cov = np.diag(cov_diag**2)
 U, S, V = np.linalg.svd(cov)
+
+#S = np.ones(ndim)
+#Dinv = np.diag(1/np.sqrt(np.diag(cov)))
+#U = np.dot(Dinv, np.eye(ndim))
 
 # no cyclic variables
 cyclic = np.zeros(ndim)

@@ -61,6 +61,8 @@ parser.add_option('--DM', dest='DM', action='store_true', default=False,
                    help='Add DM based on real data values? (default = False)')
 parser.add_option('--tim', dest='tim', action='store', type=str, default=None,
                    help='Output new tim files (default = None, dont output tim files)')
+parser.add_option('--real', dest='real', action='store_true', default=False,
+                   help='Inject in to real data in hdf5 file (default = False, use idealized TOAs)')
 
 
 # parse arguments
@@ -86,7 +88,8 @@ pfile = h5.File(h5copy, 'r+')
 pulsargroup = pfile['Data']['Pulsars']
 
 # fill in pulsar class
-psr = [PALpulsarInit.pulsar(pulsargroup[key],addNoise=True, addGmatrix=True) for key in pulsargroup]
+psr = [PALpulsarInit.pulsar(pulsargroup[key], addNoise=True, addGmatrix=True) \
+                for key in pulsargroup]
 
 # number of pulsars
 npsr = len(psr)
@@ -141,9 +144,11 @@ pp = [pp[ii] for ii in index]
 ################## SIMULATED RESIDUALS ########################
 
 # create idealized TOAs
-for p in pp:
-    p.stoas[:] -= p.residuals()/86400
-    p.fit()
+if args.real == False:
+    print 'Creating Idealized TOAs'
+    for p in pp:
+        p.stoas[:] -= p.residuals()/86400
+        p.fit()
 
 # add gwb
 if args.gwb:
@@ -222,7 +227,7 @@ if args.noise:
             print 'No noise values for pulsar {0}'.format(p.name)
 
 # no options, just white noise
-if args.noise == False:
+if args.noise == False and args.real == False:
 
     print 'Using only white noise based on error bars'
     # add to site arrival times of pulsar
