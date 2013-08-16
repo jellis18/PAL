@@ -87,7 +87,7 @@ for p in psr:
 
 # run Fp statistic to determine starting frequency
 print 'Running initial Fpstat search'
-fsearch = np.logspace(-9, -7, 200)
+fsearch = np.logspace(-9, -7, 1000)
 fpstat = np.zeros(len(fsearch))
 for ii in range(len(fsearch)):
     fpstat[ii] = PALLikelihoods.fpStat(psr, fsearch[ii])
@@ -143,13 +143,18 @@ ldmax = 4
 lmmin = 7
 lmmax = 9
 lfmin = -8.5
-lfmax = -7.5
-lhmin = -17
+lfmax = -6.5
+lhmin = -16
 lhmax = -12
+hmin = 0
+hmax = 1000
+cthmin = -1
+cincmin = 0
+cthmax = cincmax = 1
 
 # set minimum and maximum parameter ranges
-pmin = [thmin, phimin, lfmin, lhmin, psimin, incmin, phasemin]
-pmax = [thmax, phimax, lfmax, lhmax, psimax, incmax, phasemax]
+pmin = [cthmin, phimin, lfmin, lhmin, psimin, cincmin, phasemin]
+pmax = [cthmax, phimax, lfmax, lhmax, psimax, cincmax, phasemax]
 
 # add prior ranges for pulsar phase
 for ii in range(npsr):
@@ -174,12 +179,12 @@ def loglike(x):
 
     tstart = time.time()
 
-    theta = x[0]
+    theta = np.arccos(x[0])
     phi = x[1]
     f = 10**x[2]
     h = 10**x[3]
     psi = x[4]
-    inc = x[5]
+    inc = np.arccos(x[5])
     phase = x[6]
 
     # get pulsar phase

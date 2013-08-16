@@ -68,7 +68,8 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=
         pdist = psr.dist
     elif pdist is None and pphase is not None:
         pdist = pphase/(2*np.pi*fgw*(1-cosMu)) / 1.0267e11
-    
+   
+
     # convert units
     mc *= 4.9e-6         # convert from solar masses to seconds
     dist *= 1.0267e14    # convert from Mpc to seconds

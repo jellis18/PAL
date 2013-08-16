@@ -244,11 +244,25 @@ if args.noise == False and args.real == False:
         white = PALutils.createWhiteNoiseCovarianceMatrix(p.toaerrs*1e-6, 1, 0)
         tmp = np.dot(psr[ct].G.T, np.dot(white, psr[ct].G))
         invCov = np.dot(psr[ct].G, np.dot(np.linalg.inv(tmp), psr[ct].G.T))
-        pulsargroup[psr[ct].name]['invCov'][...] = invCov
-        pulsargroup[psr[ct].name]['Amp'][...] = 0
-        pulsargroup[psr[ct].name]['gam'][...] = 4.33
-        pulsargroup[psr[ct].name]['efac'][...] = 1
-        pulsargroup[psr[ct].name]['equad'][...] = 0
+        try:
+            pulsargroup[psr[ct].name]['invCov'][...] = invCov
+            pulsargroup[psr[ct].name]['Amp'][...] = 0
+            pulsargroup[psr[ct].name]['gam'][...] = 4.33
+            pulsargroup[psr[ct].name]['efac'][...] = 1
+            pulsargroup[psr[ct].name]['equad'][...] = 0
+
+        except KeyError:
+            print 'Warning: Creating noise datagroups in hdf5 file'
+        
+            # create dataset for inverse covariance matrix
+            pulsargroup[psr[ct].name].create_dataset('invCov', data = invCov) 
+
+            # record noise parameter values
+            pulsargroup[psr[ct].name].create_dataset('Amp', data = 0)
+            pulsargroup[psr[ct].name].create_dataset('gam', data = 4.33)
+            pulsargroup[psr[ct].name].create_dataset('efac', data = 1.0)
+            pulsargroup[psr[ct].name].create_dataset('equad', data = 0)
+
         psr[ct].invCov = invCov
 
 # add single source put after all noise simulation so we can get accurate snr

@@ -30,6 +30,8 @@ parser.add_option('--logsample', dest='logsample', action='store_true', default=
                    help='Sample in log frequency (default = False)')
 parser.add_option('--best', dest='best', action='store', type=int, default=0,
                    help='Only use best pulsars based on weighted rms (default = 0, use all)')
+parser.add_option('--pulsar', dest='pname', action='store', type=str, default=None,
+                   help='Option to use single pulsar')
 
 
 # parse arguments
@@ -48,7 +50,7 @@ pulsargroup = pfile['Data']['Pulsars']
 # fill in pulsar class
 psr = [PALpulsarInit.pulsar(pulsargroup[key],addNoise=True) for key in pulsargroup]
 
-if args.best != 0:
+if args.best != 0 and args.pname is None:
     print 'Using best {0} pulsars'.format(args.best)
     rms = np.array([p.rms() for p in psr])
     ind = np.argsort(rms)
@@ -57,6 +59,13 @@ if args.best != 0:
 
     for p in psr:
         print 'Pulsar {0} has {1} ns weighted rms'.format(p.name,p.rms()*1e9)
+
+if args.pname:
+    print 'Using pulsar {0}'.format(args.pname)
+
+    ind = [ii for ii in range(len(psr)) if psr[ii].name == args.pname]
+
+    psr = [psr[int(np.array(ind))]]
 
 
 # close hdf5 file
