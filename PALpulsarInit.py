@@ -475,6 +475,21 @@ class pulsar(object):
 
         return np.sqrt(np.sum(self.res**2*W)/np.sum(W))
 
+    def cosMu(self, gwtheta, gwphi):
+        """
+        Calculate cosine of angle between pulsar and GW
+
+        """
+        # calculate unit vector pointing at GW source
+        omhat = [np.sin(gwtheta)*np.cos(gwphi), np.sin(gwtheta)*np.sin(gwphi), np.cos(gwtheta)]
+
+        # calculate unit vector pointing to pulsar
+        phat = [np.sin(self.theta)*np.cos(self.phi), np.sin(self.theta)*np.sin(self.phi), \
+                np.cos(self.theta)]
+
+        return np.dot(omhat, phat)
+
+
    
 def createPulsarHDF5File(parDir, timDir, noiseDir=None, distFile=None, \
                          saveDir=None, DMOFF=None, dailyAverage=False):

@@ -290,8 +290,12 @@ class PTSampler(object):
         ntemps = self.ntemps
 
         for i in range(ntemps - 1, 0, -1):
+
             bi = self.betas[i]
             bi1 = self.betas[i - 1]
+            
+            ## propose jump with probability given by beta
+            #if nr.rand() < bi1:
 
             dbeta = bi1 - bi
 

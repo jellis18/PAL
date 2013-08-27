@@ -88,9 +88,9 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=
 
   
         # calculate time dependent phase
-        phase = phase0+ 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
+        phase = phase0 + 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
                 (fgw**(-5/3) - (omega/2/np.pi)**(-5/3))
-        phase_p = phase0+ 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
+        phase_p = phase0 + 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
                 (fgw**(-5/3) - (omega_p/2/np.pi)**(-5/3))
           
     # no evolution

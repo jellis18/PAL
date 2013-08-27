@@ -18,10 +18,6 @@ parser = argparse.ArgumentParser(description = 'Simulate Fake Data (Under Constr
 # options
 parser.add_argument('--h5File', dest='h5file', action='store', type=str, required=True,
                    help='Full path to hdf5 file containing PTA data')
-parser.add_argument('--parDir', dest='parDir', action='store', type=str, required=True,
-                   help='Full path to par files')
-parser.add_argument('--timDir', dest='timDir', action='store', type=str, required=True,
-                   help='Full path to tim files')
 parser.add_argument('--freq', dest='freq', action='store', type=float, required=True,
                    help='Frequency at which to compute upper limit')
 parser.add_argument('--nreal', dest='nreal', action='store', type=int, required=1000,
@@ -41,9 +37,6 @@ pulsargroup = pfile['Data']['Pulsars']
 # fill in pulsar class
 psr = [PALpulsarInit.pulsar(pulsargroup[key],addNoise=True) for key in pulsargroup]
 
-# close hdf5 file
-pfile.close()
-
 # number of pulsars
 npsr = len(psr)
 
@@ -59,14 +52,12 @@ tref = np.min(tt)
 for p in psr:
     p.toas -= tref
 
-
 # read in tim and par files
-parFile = glob.glob(args.parDir + '/*.par')
-timFile = glob.glob(args.timDir + '/*.tim')
+parFile = [pulsargroup[key]['parFile'].value for key in pulsargroup]
+timFile = [pulsargroup[key]['timFile'].value for key in pulsargroup]
 
-# sort
-parFile.sort()
-timFile.sort()
+# close hdf5 file
+pfile.close()
 
 # check to make sure same number of tim and par files
 if len(parFile) != len(timFile):

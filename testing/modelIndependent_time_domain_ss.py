@@ -106,10 +106,10 @@ for ct, p in enumerate(psr):
     gam = p.gam
     fH = p.fH
     
-    #efac = 1.0
-    #equad = 0
-    #Amp = 0
-    #gam = 4.33
+    efac = 1.0
+    equad = 0
+    Amp = 3e-15
+    gam = 4.33
 
 
     # get white noise covariance matrix
@@ -122,6 +122,10 @@ for ct, p in enumerate(psr):
     C = np.dot(p.G.T, np.dot(red+white, p.G))
     cf = sl.cho_factor(C)
     logdetTerm.append(np.sum(2*np.log(np.diag(cf[0])))) #+ p.G.shape[1]*np.log(2*np.pi))
+
+    invCov = np.dot(p.G, np.dot(np.linalg.inv(C), p.G.T))
+    
+    p.invCov = invCov
 
 # get null model log-likelihood
 nullLike = 0
@@ -142,8 +146,8 @@ ldmin = -4
 ldmax = 4
 lmmin = 7
 lmmax = 9
-lfmin = -8.5
-lfmax = -6.5
+lfmin = -9
+lfmax = -7
 lhmin = -16
 lhmax = -12
 hmin = 0
