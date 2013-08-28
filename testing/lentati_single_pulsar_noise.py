@@ -304,7 +304,7 @@ if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.bro
 if args.powerlaw  and args.nmodes != 0 and args.fc == False and args.broken == False \
                     and args.independent == False and args.single == True :
 
-    print 'Parameterizing Power spectrum by power law and {1} single source'.format(args.ss)
+    print 'Parameterizing Power spectrum by power law and {0} single source'.format(args.ss)
     
     def myprior(cube, ndim, nparams):
         # define parameter ranges
@@ -319,13 +319,13 @@ if args.powerlaw  and args.nmodes != 0 and args.fc == False and args.broken == F
         rhomin = -18
         rhomax = -8
         fmin = -9
-        fmax = np.log10(4e-7)
+        fmax = np.log10(1e-7)
 
         # convert from hypercube
         cube[0] = emin + cube[0] * (emax - emin)
         cube[1] = qmin + cube[1] * (qmax - qmin)
-        cube[2] = gamMin + cube[2] * (gamMax - gamMax)
-        cube[3] = lAmin + cube[3] * (lAmin - lAmax)
+        cube[2] = gamMin + cube[2] * (gamMax - gamMin)
+        cube[3] = lAmin + cube[3] * (lAmax - lAmin)
         for ii in range(args.ss):
             cube[4+ii] = fmin + cube[4+ii] * (fmax - fmin)
         for ii in range(4+args.ss, ndim):
@@ -359,7 +359,7 @@ if args.powerlaw  and args.nmodes != 0 and args.fc == False and args.broken == F
 
         # get power spectrum coefficients
         f1yr = 1/3.16e7
-        rho = list(A**2/12/np.pi**2 * f1yr**(gam-3) * f**(-gam)/Tspan)
+        rho = list(np.log10(A**2/12/np.pi**2 * f1yr**(gam-3) * f**(-gam)/Tspan))
 
         # compute total rho
         for ii in range(args.ss):
@@ -374,7 +374,7 @@ if args.powerlaw  and args.nmodes != 0 and args.fc == False and args.broken == F
         return loglike
 
     # number of dimensions our problem has
-    n_params = args.nmodes + args.ss*2 + 2
+    n_params = args.ss*2 + 4
     nlive = 500
 
 if args.powerlaw == False and args.nmodes == 0 and args.fc == False and args.broken == False and args.single == False:
@@ -410,9 +410,10 @@ if args.powerlaw == False and args.nmodes == 0 and args.fc == False and args.bro
 
 # run MultiNest
 pymultinest.run(myloglike, myprior, n_params, resume = False, \
-                verbose = True, sampling_efficiency = 0.3, \
+                verbose = True, sampling_efficiency = 0.05, \
                 outputfiles_basename =  args.outDir+'/test', \
-                n_iter_before_update=5, n_live_points=nlive)
+                n_iter_before_update=5, n_live_points=nlive, \
+                const_efficiency_mode=True)
 
 ## Importance nested sampling
 #nlive = 500

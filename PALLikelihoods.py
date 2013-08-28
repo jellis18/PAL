@@ -507,7 +507,6 @@ def lentatiMarginalizedLike(psr, F, s, rho, efac, equad):
         arr[ii+1] = rho[ct]
         ct += 1
 
-    Phi = np.diag(10**arr)
     Sigma = FNF + np.diag(1/10**arr)
 
     # cholesky decomp for second term in exponential

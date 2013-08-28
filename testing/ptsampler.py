@@ -294,35 +294,35 @@ class PTSampler(object):
             bi = self.betas[i]
             bi1 = self.betas[i - 1]
             
-            ## propose jump with probability given by beta
-            #if nr.rand() < bi1:
+            # propose jump with probability given by beta
+            if nr.rand() < bi1:
 
-            dbeta = bi1 - bi
+                dbeta = bi1 - bi
 
-            raccept = np.log(nr.uniform())
-            paccept = dbeta * (logl[i] - logl[i - 1])
+                raccept = np.log(nr.uniform())
+                paccept = dbeta * (logl[i] - logl[i - 1])
 
-            asel = (paccept > raccept)
+                asel = (paccept > raccept)
 
-            self.nswap[i] += 1
-            self.nswap[i-1] += 1
+                self.nswap[i] += 1
+                self.nswap[i-1] += 1
 
-            if asel:
+                if asel:
 
-                self.nswap_accepted[i] += 1
-                self.nswap_accepted[i - 1] += 1
+                    self.nswap_accepted[i] += 1
+                    self.nswap_accepted[i - 1] += 1
 
-                ptemp = np.copy(p[i, :])
-                ltemp = np.copy(logl[i])
-                prtemp = np.copy(lnprob[i])
+                    ptemp = np.copy(p[i, :])
+                    ltemp = np.copy(logl[i])
+                    prtemp = np.copy(lnprob[i])
 
-                p[i, :] = p[i - 1, :]
-                logl[i] = logl[i - 1]
-                lnprob[i] = lnprob[i - 1] - dbeta * logl[i - 1]
+                    p[i, :] = p[i - 1, :]
+                    logl[i] = logl[i - 1]
+                    lnprob[i] = lnprob[i - 1] - dbeta * logl[i - 1]
 
-                p[i - 1, :] = ptemp
-                logl[i - 1] = ltemp
-                lnprob[i - 1] = prtemp + dbeta * ltemp
+                    p[i - 1, :] = ptemp
+                    logl[i - 1] = ltemp
+                    lnprob[i - 1] = prtemp + dbeta * ltemp
 
         return p, lnprob, logl
 

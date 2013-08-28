@@ -381,7 +381,7 @@ cyclic[6] = 2*np.pi
 cyclic[7:] = 2*np.pi
 
 # initialize MH sampler
-sampler=PTSampler(ntemps, ndim, loglike, logprior, jumpProposals, threads=nthreads, betas=betas, cyclic=cyclic)
+sampler=PTSampler(ntemps, ndim, loglike, logprior, jumpProposals, threads=nthreads, betas=betas, cyclic=cyclic, Tskip=10)
 
 # set output file
 chainfile = args.outDir + '/chain.npy'
@@ -392,7 +392,7 @@ covfile = args.outDir + '/cov.npy'
 # run sampler
 N = 1000000
 isave = 5000   # save every isave iterations
-thin = 1
+thin = 20
 ct = 0
 print 'Beginning Sampling in {0} dimensions\n'.format(ndim)
 tstart = time.time()
@@ -401,13 +401,14 @@ for pos, prob, state in sampler.sample(p0, iterations=N):
 
         tstep = time.time() - tstart
 
-        np.save(chainfile, sampler.chain[:,0:ct,:])
+        np.save(chainfile, sampler.chain[:,0:ct:thin,:])
         np.save(lnlikefile,sampler.lnlikelihood[:,0:ct])
         np.save(lnprobfile,sampler.lnprobability[:,0:ct])
         np.save(covfile, cov)
 
         print 'Finished {0} of {1} iterations.'.format(ct, N)
         print 'Acceptance fraction = {0}'.format(sampler.acceptance_fraction)
+        print 'Tswap Acceptance fraction = {0}'.format(sampler.tswap_acceptance_fraction)
         print 'Time elapsed: {0} s'.format(tstep)
         print 'Approximate time remaining: {0} hr\n'.format(tstep/ct * (N-ct)/3600)
 
