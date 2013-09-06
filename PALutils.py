@@ -36,7 +36,7 @@ def createAntennaPatternFuncs(psr, gwtheta, gwphi):
     return fplus, fcross, cosMu
 
 def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=None, \
-                        pphase=None, psrTerm=True, evolve=True):
+                        pphase=None, psrTerm=True, evolve=True, phase_approx=False):
     """
     Function to create GW incuced residuals from a SMBMB as 
     defined in Ellis et. al 2012,2013.
@@ -77,27 +77,47 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=
     
     # get pulsar time
     tp = toas-pdist*(1-cosMu)
-    
+
+    # orbital frequency
+    w0 = np.pi * fgw
+    omegadot = 12/5 * 2**(1/3) * mc**(5/3) * w0**(11/3)
+
     # evolution
     if evolve:
 
         # calculate time dependent frequency at earth and pulsar
-        fdot = (96/5) * np.pi**(8/3) * mc**(5/3) * (fgw)**(11/3)
-        omega = 2*np.pi*fgw*(1-8/3*fdot/fgw*toas)**(-3/8)
-        omega_p = 2*np.pi*fgw*(1-256/5 * mc**(5/3) * np.pi**(8/3) * fgw**(8/3) *tp)**(-3/8)
+        omega = w0 * (1 - 256/5 * mc**(5/3) * w0**(8/3) * toas)**(-3/8)
+        omega_p = w0 * (1 - 256/5 * mc**(5/3) * w0**(8/3) * tp)**(-3/8)
+
+        #fdot = (96/5) * np.pi**(8/3) * mc**(5/3) * (fgw)**(11/3)
+        #omega = 2*np.pi*fgw*(1-8/3*fdot/fgw*toas)**(-3/8)
+        #omega_p = 2*np.pi*fgw*(1-256/5 * mc**(5/3) * np.pi**(8/3) * fgw**(8/3) *tp)**(-3/8)
 
   
         # calculate time dependent phase
-        phase = phase0 + 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
-                (fgw**(-5/3) - (omega/2/np.pi)**(-5/3))
-        phase_p = phase0 + 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
-                (fgw**(-5/3) - (omega_p/2/np.pi)**(-5/3))
+        phase = phase0 + 1/32/mc**(5/3) * (w0**(-5/3) - omega**(-5/3))
+        phase_p = phase0 + 1/32/mc**(5/3) * (w0**(-5/3) - omega_p**(-5/3))
+    
+        #phase = phase0 + 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
+        #        (fgw**(-5/3) - (omega/2/np.pi)**(-5/3))
+        #phase_p = phase0 + 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
+        #        (fgw**(-5/3) - (omega_p/2/np.pi)**(-5/3))
+
+    elif phase_approx:
+        
+        # monochromatic
+        omega = np.pi*fgw
+        omega_p = omega - omegadot*pdist*(1-cosMu)
+        
+        # phases
+        phase = phase0 + omega * toas
+        phase_p = phase0 + omega_p * toas - omega*pdist*(1-cosMu)
           
     # no evolution
     else: 
         
         # monochromatic
-        omega = 2*np.pi*fgw
+        omega = np.pi*fgw
         omega_p = omega
         
         # phases
@@ -106,14 +126,14 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=
         
 
     # define time dependent coefficients
-    At = -0.5*np.sin(phase)*(3+np.cos(2*inc))
-    Bt = 2*np.cos(phase)*np.cos(inc)
-    At_p = -0.5*np.sin(phase_p)*(3+np.cos(2*inc))
-    Bt_p = 2*np.cos(phase_p)*np.cos(inc)
+    At = -0.5*np.sin(2*phase)*(3+np.cos(2*inc))
+    Bt = 2*np.cos(2*phase)*np.cos(inc)
+    At_p = -0.5*np.sin(2*phase_p)*(3+np.cos(2*inc))
+    Bt_p = 2*np.cos(2*phase_p)*np.cos(inc)
 
     # now define time dependent amplitudes
-    alpha = mc**(5./3.)/(dist*(omega/2)**(1./3.))
-    alpha_p = mc**(5./3.)/(dist*(omega_p/2)**(1./3.))
+    alpha = mc**(5./3.)/(dist*omega**(1./3.))
+    alpha_p = mc**(5./3.)/(dist*omega_p**(1./3.))
 
 
     # define rplus and rcross

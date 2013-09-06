@@ -106,10 +106,10 @@ for ct, p in enumerate(psr):
     gam = p.gam
     fH = p.fH
     
-    efac = 1.0
-    equad = 0
-    Amp = 3e-15
-    gam = 4.33
+    #efac = 1.0
+    #equad = 0
+    #Amp = 3e-15
+    #gam = 4.33
 
 
     # get white noise covariance matrix
@@ -304,7 +304,10 @@ def jumpProposals(x, iter, beta):
     ind = np.unique(np.random.randint(0, ndim, block))
     #ind = PALutils.weighted_values(np.arange(ndim), S/np.sum(S), block)
     neff = len(ind)
-    cd = 2.4 * np.sqrt(1/beta) / np.sqrt(neff) * scale
+    if beta > 1/25:
+        cd = 2.4 * np.sqrt(1/beta) / np.sqrt(neff) * scale
+    else:
+        cd = 2.4 * 5 / np.sqrt(neff) * scale
     y[ind] = y[ind] + np.random.randn(neff) * cd * np.sqrt(S[ind])
     #q = np.dot(np.linalg.inv(U).T, y)
     q = np.dot(U, y)
@@ -346,6 +349,16 @@ nthreads = args.nprocs
 
 # geometrically spaced betas
 betas = np.exp(np.linspace(0, -(ntemps-1)*np.log(tstep), ntemps))
+
+tstep = 1.3
+ntemps = 14
+betas = np.exp(np.linspace(0, -(ntemps-1)*np.log(tstep), ntemps))
+
+b2 = np.logspace(np.log(betas[-1]), np.log(1e-4), 10, base=np.exp(1))
+
+betas = np.concatenate((betas[:-1], b2))
+
+ntemps = len(betas)
 
 # pick starting values
 p0 = np.zeros((ntemps, ndim))

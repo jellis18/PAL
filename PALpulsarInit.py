@@ -18,7 +18,7 @@ class PulsarFile(object):
         # Delete the instance, and close the hdf5 file?
         pass
 
-    def addpulsar(self, parfile, timfile, DMOFF=None, dailyAverage=False):
+    def addpulsar(self, parfile, timfile, DMOFF=None, DMXOFF=None, dailyAverage=False):
 
         """
         Add another pulsar to the HDF5 file, given a tempo2 par and tim file.
@@ -26,6 +26,7 @@ class PulsarFile(object):
         @param parfile: tempo2 par file
         @param timfile: tempo2 tim file
         @param DMOFF: Option to turn off DMMODEL fitting
+        @param DMOFF: Option to turn off DMX fitting
         @param dailyAverage: Option to perform daily averaging to reduce the number
                              of points by consructing daily averaged TOAs that have
                              one residual per day per frequency band. (This has only
@@ -56,11 +57,24 @@ class PulsarFile(object):
         t2pulsar = t2.tempopulsar(parfile, timfile)
 
         # do multiple fits
-        t2pulsar.fit(iters=10)
+        #t2pulsar.fit(iters=10)
 
         # turn off DMMODEL fitting
         if DMOFF is not None:
             t2pulsar['DMMODEL'].fit = False
+        
+        # turn off DMX fitting
+        if DMXOFF is not None:
+            DMXFlag = False
+            print 'Turning off DMX fitting and turning DM fitting on'
+            for par in t2pulsar.pars:
+                if 'DMX' in par:
+                    print par
+                    t2pulsar[par].fit = False
+                    t2pulsar['DM'].fit = True
+                    DMXFlag = True
+            if DMXFlag== False: 
+                print 'NO DMX for pulsar {0}'.format(t2pulsar.name)
 
         # refit 5 times to make sure we are converged
         t2pulsar.fit(iters=5)
@@ -142,7 +156,7 @@ class PulsarFile(object):
         self.h5file.close()
 
     # add inverse covariance matrix G (G.T C G)^-1 G.T
-    def addInverseCovFromNoiseFile(self, parfile, timfile, noisefile, DMOFF=None, dailyAverage=False):
+    def addInverseCovFromNoiseFile(self, parfile, timfile, noisefile, DMOFF=None, DMXOFF=None, dailyAverage=False):
         """
         
         Add noise covariance matrix after timing model subtraction.
@@ -169,6 +183,18 @@ class PulsarFile(object):
         # turn off DMMODEL fitting
         if DMOFF is not None:
             t2pulsar['DMMODEL'].fit = False
+
+        # turn off DMX fitting
+        if DMXOFF is not None:
+            DMXFlag = False
+            print 'Turning off DMX fitting and turning DM fitting on'
+            for par in t2pulsar.pars:
+                if 'DMX' in par:
+                    t2pulsar[par].fit = False
+                    t2pulsar['DM'].fit = True
+                    DMXFlag = True
+            if DMXFlag== False: 
+                print 'NO DMX for pulsar {0}'.format(t2pulsar.name)
 
         # refit 5 times to make sure we are converged
         t2pulsar.fit(iters=5)
@@ -492,7 +518,7 @@ class pulsar(object):
 
    
 def createPulsarHDF5File(parDir, timDir, noiseDir=None, distFile=None, \
-                         saveDir=None, DMOFF=None, dailyAverage=False):
+                         saveDir=None, DMOFF=None, DMXOFF=None, dailyAverage=False):
     """
 
     Utility function to fill in our hdf5 pulsar file
@@ -505,6 +531,7 @@ def createPulsarHDF5File(parDir, timDir, noiseDir=None, distFile=None, \
                     Save pulsar.hdf5 to current directory if 
                     not specified.
     @param DMOFF: Option to turn off DMMODEL fitting if applicable 
+    @param DMXOFF: Option to turn off DMMODEL fitting if applicable 
     @param dailyAverage: Option to to daily averaging  
     
     """
@@ -583,13 +610,13 @@ def createPulsarHDF5File(parDir, timDir, noiseDir=None, distFile=None, \
     pulsar = PulsarFile(saveDir)
 
     # add pulsars
-    [pulsar.addpulsar(parFile[ii], timFile[ii], DMOFF=DMOFF, dailyAverage=dailyAverage) \
+    [pulsar.addpulsar(parFile[ii], timFile[ii], DMOFF=DMOFF,DMXOFF=DMXOFF, dailyAverage=dailyAverage) \
             for ii in range(len(parFile))]
 
     # add noise covaraiance matrices
     if noiseDir is not None:
         [pulsar.addInverseCovFromNoiseFile(parFile[ii], timFile[ii], noiseFile[ii], DMOFF=DMOFF, \
-                                           dailyAverage=dailyAverage) for ii in range(len(parFile))]
+                                           DMXOFF=DMXOFF, dailyAverage=dailyAverage) for ii in range(len(parFile))]
 
     # add pulsar distances and uncertainties
     if distFile is not None:
@@ -611,13 +638,15 @@ if __name__ == '__main__':
                        help='Full path to output filename (required)')
     parser.add_option('--distFile', dest='distFile', action='store', type=str, default=None,
                        help='Full path to pulsar distance file')
-    parser.add_option('--DMOFF', dest='DMOFF', action='store', type=str, default=None,
-                       help='Turn on DMMODEL fitting')
+    parser.add_option('--DMOFF', dest='DMOFF', action='store', type=int, default=None,
+                       help='1 to turn on DMMODEL fitting')
+    parser.add_option('--DMXOFF', dest='DMXOFF', action='store', type=int, default=None,
+                       help='1 to turn on DMMODEL fitting')
 
     (args, x) = parser.parse_args()
 
     createPulsarHDF5File(args.parDir, args.timDir, args.noiseDir, args.distFile, \
-                             args.outFile, args.DMOFF, dailyAverage=False)
+                             args.outFile, args.DMOFF, args.DMXOFF, dailyAverage=False)
 
 
 

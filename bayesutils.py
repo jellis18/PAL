@@ -8,6 +8,7 @@ import matplotlib.mlab as ml
 import statsmodels.api as sm
 from matplotlib.ticker import FormatStrFormatter, LinearLocator, NullFormatter, NullLocator
 import matplotlib.ticker
+import matplotlib.colors
 from optparse import OptionParser
 
 """
@@ -108,16 +109,40 @@ def confinterval(samples, sigmalevel=1, onesided=False):
 
 
 
-def makesubplot2d(ax, samples1, samples2, color=True, weights=None, smooth=True):
+def makesubplot2d(ax, samples1, samples2, color=True, weights=None, smooth=True, \
+                  bins=[40, 40], contours=True, x_range=None, y_range=None, \
+                  logx=False, logy=False, logz=False):
+    
+    if x_range is None:
+        xmin = np.min(samples1)
+        xmax = np.max(samples1)
+    else:
+        xmin = x_range[0]
+        xmax = x_range[1]
 
-    xmin = np.min(samples1)
-    xmax = np.max(samples1)
-    ymin = np.min(samples2)
-    ymax = np.max(samples2)
+    if y_range is None:
+        ymin = np.min(samples2)
+        ymax = np.max(samples2)
+    else:
+        ymin = y_range[0]
+        ymax = y_range[1]
+
+    if logx:
+        bins[0] = np.logspace(np.log10(xmin), np.log10(xmax), bins[0])
+    
+    if logy:
+        bins[1] = np.logspace(np.log10(ymin), np.log10(ymax), bins[1])
 
     hist2d,xedges,yedges = np.histogram2d(samples1, samples2, weights=weights, \
-            bins=40,range=[[xmin,xmax],[ymin,ymax]])
+            bins=bins,range=[[xmin,xmax],[ymin,ymax]])
     extent = [xedges[0], xedges[-1], yedges[0], yedges[-1] ]
+
+    if logz:
+        for ii in range(hist2d.shape[0]):
+            for jj in range(hist2d.shape[1]):
+                if hist2d[ii,jj] <= 0:
+                    hist2d[ii,jj] = 1
+
     
     xedges = np.delete(xedges, -1) + 0.5*(xedges[1] - xedges[0])
     yedges = np.delete(yedges, -1) + 0.5*(yedges[1] - yedges[0])
@@ -125,33 +150,50 @@ def makesubplot2d(ax, samples1, samples2, color=True, weights=None, smooth=True)
     # gaussian smoothing
     if smooth:
         hist2d = filter.gaussian_filter(hist2d, sigma=0.75)
-    
-    level1, level2, level3 = getsigmalevels(hist2d)
-    
-    contourlevels = (level1, level2, level3)
-    
-    #contourcolors = ('darkblue', 'darkblue', 'darkblue')
-    contourcolors = ('black', 'black', 'black')
-    contourlinestyles = ('-', '--', ':')
-    contourlinewidths = (1.5, 1.5, 1.5)
-    contourlabels = [r'1 $\sigma$', r'2 $\sigma$',r'3 $\sigma$']
-    
-    contlabels = (contourlabels[0], contourlabels[1], contourlabels[2])
 
-    c1 = ax.contour(xedges,yedges,hist2d.T,contourlevels, \
-            colors=contourcolors, linestyles=contourlinestyles, \
-            linewidths=contourlinewidths, zorder=2)
+    if contours:
+        
+        level1, level2, level3 = getsigmalevels(hist2d)
+        
+        contourlevels = (level1, level2, level3)
+        
+        #contourcolors = ('darkblue', 'darkblue', 'darkblue')
+        contourcolors = ('black', 'black', 'black')
+        contourlinestyles = ('-', '--', ':')
+        contourlinewidths = (1.5, 1.5, 1.5)
+        contourlabels = [r'1 $\sigma$', r'2 $\sigma$',r'3 $\sigma$']
+        
+        contlabels = (contourlabels[0], contourlabels[1], contourlabels[2])
+
+        c1 = ax.contour(xedges,yedges,hist2d.T,contourlevels, \
+                colors=contourcolors, linestyles=contourlinestyles, \
+                linewidths=contourlinewidths, zorder=2)
     if color:
-        c2 = ax.imshow(np.flipud(hist2d.T), extent=extent, aspect=ax.get_aspect(), \
-                  interpolation='gaussian')
+        if logz:
+            c2 = ax.imshow(np.flipud(hist2d.T), extent=extent, aspect=ax.get_aspect(), \
+                      interpolation='gaussian', norm=matplotlib.colors.LogNorm())
+        else:
+            c2 = ax.imshow(np.flipud(hist2d.T), extent=extent, aspect=ax.get_aspect(), \
+                      interpolation='gaussian')
+
+    if logx:
+        ax.set_xscale('log')
+    if logy:
+        ax.set_yscale('log')
     
     
-def makesubplot1d(ax, samples, weights=None, interpolate=False, smooth=True):
+def makesubplot1d(ax, samples, weights=None, interpolate=False, smooth=True,\
+                  label=None, bins=30, range=None, color='k'):
     """ 
     Make histogram of samples
 
     """
-    hist, xedges = np.histogram(samples, 30, normed=True)
+
+    if range is None:
+        hist, xedges = np.histogram(samples, bins, normed=True)
+    else:
+        hist, xedges = np.histogram(samples, bins, normed=True, range=range)
+
     xedges = np.delete(xedges, -1) + 0.5*(xedges[1] - xedges[0])
 
     # gaussian smoothing
@@ -159,11 +201,14 @@ def makesubplot1d(ax, samples, weights=None, interpolate=False, smooth=True):
         hist = filter.gaussian_filter(hist, sigma=0.75)
         if interpolate:
             f = interp.interp1d(xedges, hist, kind='cubic')
-            xedges = np.linspace(xedges.min(), xedges.max(), 1000)
+            xedges = np.linspace(xedges.min(), xedges.max(), 10000)
             hist = f(xedges)
 
     # make plot
-    ax.plot(xedges, hist, color='k', lw=1.5)
+    if label is not None:
+        ax.plot(xedges, hist, color=color, lw=1.5, label=label)
+    else:
+        ax.plot(xedges, hist, color=color, lw=1.5)
         
 
 # make triangle plot of marginalized posterior distribution
