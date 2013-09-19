@@ -57,7 +57,7 @@ def getsigmalevels(hist2d):
 
   return level1, level2, level3
 
-def confinterval(samples, sigmalevel=1, onesided=False):
+def confinterval(samples, sigma=0.68, onesided=False):
     """
 
     Given a list of samples, return the desired cofidence intervals.
@@ -72,8 +72,6 @@ def confinterval(samples, sigmalevel=1, onesided=False):
                      limits.
 
     """
-    # The probabilities for different sigmas
-    sigma = [0.68268949, 0.95449974, 0.99730024]
 
     # Create the ecdf function
     ecdf = sm.distributions.ECDF(samples)
@@ -85,9 +83,9 @@ def confinterval(samples, sigmalevel=1, onesided=False):
     # Find the intervals
     x2min = y[0]
     if onesided:
-        bound = 1 - sigma[sigmalevel-1]
+        bound = 1 - sigma
     else:
-        bound = 0.5*(1-sigma[sigmalevel-1])
+        bound = 0.5*(1-sigma)
 
     for i in range(len(y)):
         if y[i] >= bound:
@@ -96,9 +94,9 @@ def confinterval(samples, sigmalevel=1, onesided=False):
 
     x2max = y[-1]
     if onesided:
-        bound = sigma[sigmalevel-1]
+        bound = sigma
     else:
-        bound = 1 - 0.5 * (1 - sigma[sigmalevel-1])
+        bound = 1 - 0.5 * (1 - sigma)
 
     for i in reversed(range(len(y))):
         if y[i] <= bound:

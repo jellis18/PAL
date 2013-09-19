@@ -319,7 +319,7 @@ if args.powerlaw  and args.nmodes != 0 and args.fc == False and args.broken == F
         rhomin = -18
         rhomax = -8
         fmin = -9
-        fmax = np.log10(1e-7)
+        fmax = np.log10(1e-5)
 
         # convert from hypercube
         cube[0] = emin + cube[0] * (emax - emin)
@@ -410,10 +410,10 @@ if args.powerlaw == False and args.nmodes == 0 and args.fc == False and args.bro
 
 # run MultiNest
 pymultinest.run(myloglike, myprior, n_params, resume = False, \
-                verbose = True, sampling_efficiency = 0.05, \
+                verbose = True, sampling_efficiency = 0.8, \
                 outputfiles_basename =  args.outDir+'/test', \
                 n_iter_before_update=5, n_live_points=nlive, \
-                const_efficiency_mode=True)
+                const_efficiency_mode=False)
 
 ## Importance nested sampling
 #nlive = 500

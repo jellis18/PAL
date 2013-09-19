@@ -88,7 +88,7 @@ def marginalizedPulsarPhaseLike(psr, theta, phi, phase, inc, psi, freq, h, maxim
         # compute fplus and fcross
         fplus, fcross, cosMu = PALutils.createAntennaPatternFuncs(pp, theta, phi)
 
-        # mind you p's and q's
+        # mind your p's and q's
         p = (1+np.cos(inc)**2) * (fplus*np.cos(2*psi) + fcross*np.sin(2*psi))
         q = 2*np.cos(inc) * (fplus*np.sin(2*psi) - fcross*np.cos(2*psi))
 

@@ -80,7 +80,7 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=
 
     # orbital frequency
     w0 = np.pi * fgw
-    omegadot = 12/5 * 2**(1/3) * mc**(5/3) * w0**(11/3)
+    omegadot = 96/5 * mc**(5/3) * w0**(11/3)
 
     # evolution
     if evolve:
@@ -89,29 +89,23 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=
         omega = w0 * (1 - 256/5 * mc**(5/3) * w0**(8/3) * toas)**(-3/8)
         omega_p = w0 * (1 - 256/5 * mc**(5/3) * w0**(8/3) * tp)**(-3/8)
 
-        #fdot = (96/5) * np.pi**(8/3) * mc**(5/3) * (fgw)**(11/3)
-        #omega = 2*np.pi*fgw*(1-8/3*fdot/fgw*toas)**(-3/8)
-        #omega_p = 2*np.pi*fgw*(1-256/5 * mc**(5/3) * np.pi**(8/3) * fgw**(8/3) *tp)**(-3/8)
-
-  
         # calculate time dependent phase
         phase = phase0 + 1/32/mc**(5/3) * (w0**(-5/3) - omega**(-5/3))
         phase_p = phase0 + 1/32/mc**(5/3) * (w0**(-5/3) - omega_p**(-5/3))
     
-        #phase = phase0 + 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
-        #        (fgw**(-5/3) - (omega/2/np.pi)**(-5/3))
-        #phase_p = phase0 + 2*np.pi/(32*np.pi**(8/3)*mc**(5./3.))*\
-        #        (fgw**(-5/3) - (omega_p/2/np.pi)**(-5/3))
 
     elif phase_approx:
         
         # monochromatic
         omega = np.pi*fgw
-        omega_p = omega - omegadot*pdist*(1-cosMu)
+        omega_p = w0 * (1 + 256/5 * mc**(5/3) * w0**(8/3) * pdist*(1-cosMu))**(-3/8)
+        #omega_p = omega - omegadot*pdist*(1-cosMu) 
+        
+    
         
         # phases
         phase = phase0 + omega * toas
-        phase_p = phase0 + omega_p * toas - omega*pdist*(1-cosMu)
+        phase_p = phase0 + 1/32/mc**(5/3) * (w0**(-5/3) - omega_p**(-5/3)) + omega_p*toas
           
     # no evolution
     else: 

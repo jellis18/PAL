@@ -238,38 +238,39 @@ class PTSampler(object):
             self.iterations+=1
 
             # propose jump between temperatures if Tskip % iter == 0
-            if (i+1) % self.Tskip == 0:
+            if np.random.rand() < 1/self.Tskip:
                 p, lnprob, logl = self._temperature_swaps(p, lnprob, logl)
-
-
-            # propose jump in parameter space
-            q=[self._get_jump(p[ii,:],self.betas[ii]) for ii in range(self.ntemps)]
-            q=[self._wrap_params(q[ii]) for ii in range(self.ntemps)]
-            q=np.array(q)
-
-            # evaluate likelihoods in parallel
-            fn = PTPost(self.logl, self.logp, self.args)
-            if self.pool is None:
-                results = list(map(fn, [(q[j, :],self.betas[j])\
-                                       for j in range(self.ntemps)]))
+            
             else:
-                results = list(self.pool.map(fn, [(q[j, :],self.betas[j])\
-                                                  for j in range(self.ntemps)]))
 
-            newlnprob = np.array([r[0] for r in results])
-            newlogl = np.array([r[1] for r in results])
-            diff=newlnprob-lnprob
+                # propose jump in parameter space
+                q=[self._get_jump(p[ii,:],self.betas[ii]) for ii in range(self.ntemps)]
+                q=[self._wrap_params(q[ii]) for ii in range(self.ntemps)]
+                q=np.array(q)
 
-            # determine if accepted or not
-            for j in range(self.ntemps):
-                if diff[j] < 0:
-                    diff[j]=np.exp(diff[j])-nr.rand()
+                # evaluate likelihoods in parallel
+                fn = PTPost(self.logl, self.logp, self.args)
+                if self.pool is None:
+                    results = list(map(fn, [(q[j, :],self.betas[j])\
+                                           for j in range(self.ntemps)]))
+                else:
+                    results = list(self.pool.map(fn, [(q[j, :],self.betas[j])\
+                                                      for j in range(self.ntemps)]))
 
-                if diff[j] >= 0:
-                    p[j,:]=q[j,:]
-                    lnprob[j]=newlnprob[j]
-                    logl[j]=newlogl[j]
-                    self.naccepted[j]+=1
+                newlnprob = np.array([r[0] for r in results])
+                newlogl = np.array([r[1] for r in results])
+                diff=newlnprob-lnprob
+
+                # determine if accepted or not
+                for j in range(self.ntemps):
+                    if diff[j] < 0:
+                        diff[j]=np.exp(diff[j])-nr.rand()
+
+                    if diff[j] >= 0:
+                        p[j,:]=q[j,:]
+                        lnprob[j]=newlnprob[j]
+                        logl[j]=newlogl[j]
+                        self.naccepted[j]+=1
 
             # save chain values
             if (i+1) % thin == 0:
