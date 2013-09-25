@@ -14,9 +14,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-"""
-Plotting tools for drawing skymaps
-"""
+##
+# 
+# Plotting tools for drawing skymaps
+# 
 __author__ = "Leo Singer <leo.singer@ligo.org>"
 __all__ = ("AstroMollweideAxes", "reference_angle", "make_rect_poly", "heatmap")
 
@@ -45,9 +46,10 @@ import healpy as hp
 if mpl_version >= '1.3.0':
     FixedMollweideAxes = MollweideAxes
 elif mpl_version < '1.2.0':
+    ##
+    # Patched version of matplotlib's Mollweide projection that implements a
+    #         correct inverse transform.
     class FixedMollweideAxes(MollweideAxes):
-        """Patched version of matplotlib's Mollweide projection that implements a
-        correct inverse transform."""
 
         name = 'fixed mollweide'
 
@@ -79,9 +81,10 @@ elif mpl_version < '1.2.0':
         def _get_core_transform(self, resolution):
             return self.FixedMollweideTransform(resolution)
 else:
+    ##
+    # Patched version of matplotlib's Mollweide projection that implements a
+    #         correct inverse transform.
     class FixedMollweideAxes(MollweideAxes):
-        """Patched version of matplotlib's Mollweide projection that implements a
-        correct inverse transform."""
 
         name = 'fixed mollweide'
 
@@ -116,8 +119,9 @@ else:
 
 # FIXME: Remove this after all Matplotlib monkeypatches are obsolete.
 if mpl_version < '1.2.0':
+    ##
+    # Mollweide axes with phi axis flipped and in hours instead of degrees.
     class AstroMollweideAxes(FixedMollweideAxes):
-        """Mollweide axes with phi axis flipped and in hours instead of degrees."""
 
         name = 'astro mollweide'
 
@@ -171,9 +175,10 @@ if mpl_version < '1.2.0':
                 .scale(0.5 / xscale, 0.5 / yscale) \
                 .translate(0.5, 0.5)
 else:
+    ##
+    # Mollweide axes with phi axis flipped and in hours from 24 to 0 instead of
+    #         in degrees from -180 to 180.
     class AstroMollweideAxes(FixedMollweideAxes):
-        """Mollweide axes with phi axis flipped and in hours from 24 to 0 instead of
-        in degrees from -180 to 180."""
 
         name = 'astro mollweide'
 
@@ -242,26 +247,30 @@ else:
 projection_registry.register(AstroMollweideAxes)
 
 
+##
+# Convert an angle to a reference angle between 0 and 2*pi.
 def wrapped_angle(a):
-    """Convert an angle to a reference angle between 0 and 2*pi."""
     return np.mod(a, 2 * np.pi)
 
 
+##
+# Convert an angle to a reference angle between -pi and pi.
 def reference_angle(a):
-    """Convert an angle to a reference angle between -pi and pi."""
     a = np.mod(a, 2 * np.pi)
     return np.where(a <= np.pi, a, a - 2 * np.pi)
 
 
+##
+# Convert an angle to a reference angle between -180 and 180 degrees.
 def reference_angle_deg(a):
-    """Convert an angle to a reference angle between -180 and 180 degrees."""
     a = np.mod(a, 360)
     return np.where(a <= 180, a, a - 360)
 
 
+##
+# Subdivide a list of vertices by inserting subdivisions additional vertices
+#     between each original pair of vertices using linear interpolation.
 def subdivide_vertices(vertices, subdivisions):
-    """Subdivide a list of vertices by inserting subdivisions additional vertices
-    between each original pair of vertices using linear interpolation."""
     subvertices = np.empty((subdivisions * len(vertices), vertices.shape[1]))
     frac = np.atleast_2d(np.arange(subdivisions + 1, dtype=float) / subdivisions).T.repeat(vertices.shape[1], 1)
     for i in range(len(vertices)):
@@ -270,13 +279,14 @@ def subdivide_vertices(vertices, subdivisions):
 
 
 # FIXME: Remove this after all Matplotlib monkeypatches are obsolete.
+##
+# Cut a polygon across the dateline, possibly splitting it into multiple
+# polygons.  Vertices consist of (longitude, latitude) pairs where longitude
+# is always given in terms of a reference angle (between -pi and pi).
+# 
+# This routine is not meant to cover all possible cases; it will only work for
+#     convex polygons that extend over less than a hemisphere.
 def cut_dateline(vertices):
-    """Cut a polygon across the dateline, possibly splitting it into multiple
-    polygons.  Vertices consist of (longitude, latitude) pairs where longitude
-    is always given in terms of a reference angle (between -pi and pi).
-
-    This routine is not meant to cover all possible cases; it will only work for
-    convex polygons that extend over less than a hemisphere."""
 
     out_vertices = []
 
@@ -291,8 +301,9 @@ def cut_dateline(vertices):
                 n += 1
         return n
 
+    ##
+    # Test if the segment consisting of v0 and v1 croses the meridian.
     def crosses_dateline(phi0, phi1):
-        """Test if the segment consisting of v0 and v1 croses the meridian."""
         phi0, phi1 = sorted((phi0, phi1))
         return phi1 - phi0 > np.pi
 
@@ -326,13 +337,14 @@ def cut_dateline(vertices):
     return out_vertices
 
 
+##
+# Cut a polygon across the prime meridian, possibly splitting it into multiple
+# polygons.  Vertices consist of (longitude, latitude) pairs where longitude
+# is always given in terms of a wrapped angle (between 0 and 2*pi).
+# 
+# This routine is not meant to cover all possible cases; it will only work for
+#     convex polygons that extend over less than a hemisphere.
 def cut_prime_meridian(vertices):
-    """Cut a polygon across the prime meridian, possibly splitting it into multiple
-    polygons.  Vertices consist of (longitude, latitude) pairs where longitude
-    is always given in terms of a wrapped angle (between 0 and 2*pi).
-
-    This routine is not meant to cover all possible cases; it will only work for
-    convex polygons that extend over less than a hemisphere."""
 
     out_vertices = []
 
@@ -350,8 +362,9 @@ def cut_prime_meridian(vertices):
                 n += 1
         return n
 
+    ##
+    # Test if the segment consisting of v0 and v1 croses the meridian.
     def crosses_meridian(phi0, phi1):
-        """Test if the segment consisting of v0 and v1 croses the meridian."""
         # If the two angles are in [0, 2pi), then the shortest arc connecting
         # them crosses the meridian if the difference of the angles is greater
         # than pi.
@@ -422,9 +435,10 @@ def cut_prime_meridian(vertices):
     return out_vertices
 
 
+##
+# Create a Polygon patch representing a rectangle with half-angles width
+#     and height rotated from the north pole to (theta, phi).
 def make_rect_poly(width, height, theta, phi, subdivisions=10):
-    """Create a Polygon patch representing a rectangle with half-angles width
-    and height rotated from the north pole to (theta, phi)."""
 
     # Convert width and height to radians, then to Cartesian coordinates.
     w = np.sin(np.deg2rad(width))
@@ -515,21 +529,24 @@ def contour(func, *args, **kwargs):
     return ax
 
 
+##
+# Look up the value of a HEALPix map in the pixel containing the point
+#     with the specified longitude and latitude.
 def _healpix_lookup(map, lon, lat):
-    """Look up the value of a HEALPix map in the pixel containing the point
-    with the specified longitude and latitude."""
     nside = hp.npix2nside(len(map))
     return map[hp.ang2pix(nside, 0.5 * np.pi - lat, lon)]
 
 
+##
+# Produce a heatmap from a HEALPix map.
 def healpix_heatmap(map, *args, **kwargs):
-    """Produce a heatmap from a HEALPix map."""
     return heatmap(functools.partial(_healpix_lookup, map),
         *args, **kwargs)
 
 
+##
+# Produce a contour plot from a HEALPix map.
 def healpix_contour(map, *args, **kwargs):
-    """Produce a contour plot from a HEALPix map."""
     return contour(functools.partial(_healpix_lookup, map),
         *args, **kwargs)
 
@@ -565,9 +582,10 @@ def colorbar(vmax):
     return cb
 
 
+##
+# If we are using a new enough version of matplotlib, then
+#     add a white outline to all text to make it stand out from the background.
 def outline_text(ax):
-    """If we are using a new enough version of matplotlib, then
-    add a white outline to all text to make it stand out from the background."""
     try:
         # Try to import matplotlib.patheffects (requires matplotlib 1.0+).
         from matplotlib import patheffects
@@ -579,3 +597,4 @@ def outline_text(ax):
         effects = [patheffects.withStroke(linewidth=2, foreground='w')]
         for artist in ax.findobj(text.Text):
             artist.set_path_effects(effects)
+

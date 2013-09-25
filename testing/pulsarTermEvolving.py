@@ -31,6 +31,10 @@ parser.add_argument('--nprocs', dest='nprocs', action='store', type=int, default
                    help='Number of processors to use with parallel tempering (default = 1)')
 parser.add_argument('--freq', dest='freq', action='store', type=float, default=None,
                    help='Frequency at which to compute upper limit (default = None)')
+parser.add_argument('--inj', dest='inj', action='store_true', default=False,
+                   help='Start chain at injected parameters (default = False)')
+parser.add_argument('--ti', dest='ti', action='store', type=int, default=None,
+                   help='Thermodynamic Integration option (0 = cold chains, 1 = hot chains) (default = None)')
 
 
 
@@ -69,6 +73,25 @@ if args.best != 0:
         print 'Pulsar {0} has {1} ns weighted rms'.format(p.name,p.rms()*1e9)
 
 npsr = len(psr)
+
+# get injection parameters
+if args.inj:
+
+    # data group in hdf5 file
+    injgroup = pfile['Data']['Injection']
+
+    # get injected parameters
+    theta = np.pi/2 - injgroup['GWDEC'].value
+    phi = injgroup['GWRA'].value
+    freq = injgroup['GWFREQUENCY'].value
+    mc = injgroup['GWCHIRPMASS'].value
+    dist = injgroup['GWDISTANCE'].value
+    psi = injgroup['GWPOLARIZATION'].value
+    inc = injgroup['GWINC'].value
+    phase = injgroup['GWPHASE'].value
+
+    true = [theta, phi, np.log10(freq), np.log10(mc), np.log10(dist), psi, inc, phase]
+
 
 pfile.close()
 
@@ -154,9 +177,6 @@ lhmin = -16
 lhmax = -11
 hmin = 0
 hmax = 1000
-cthmin = -1
-cincmin = 0
-cthmax = cincmax = 1
 
 # set minimum and maximum parameter ranges
 pmin = [thmin, phimin, lfmin, lmmin, ldmin, psimin, incmin, phasemin]
@@ -202,6 +222,8 @@ def logprior(x):
 # define log-likelihood
 def loglike(x):
 
+    start = time.time()
+
     # parameter values
     theta = x[0]
     phi = x[1]
@@ -214,16 +236,16 @@ def loglike(x):
 
     pdist = x[8:]
 
+    # generate list of waveforms for all puslars
+    s = PALutils.createResidualsFast(psr, theta, phi, mc, dist, freq, phase, psi, inc,\
+                                     pdist=pdist, evolve=False, phase_approx=True)
+    
     loglike = 0
     for ct, p in enumerate(psr):
 
-        # generate waveform
-        s = PALutils.createResiduals(p, theta, phi, mc, dist, freq, phase, psi, inc,\
-                                     pdist=pdist[ct], evolve=True)
-
-        diff = p.res - s
-
+        diff = p.res - s[ct]
         loglike += -0.5 * (logdetTerm[ct] + np.dot(diff, np.dot(p.invCov, diff)))
+
 
     if np.isnan(loglike):
         print 'NaN log-likelihood. Not good...'
@@ -259,7 +281,7 @@ def updateRecursive(chain, M2, mu, iter, mem):
 def jumpProposals(x, iter, beta):
 
     # how often to update covariance matrix
-    mem = 5000
+    mem = 1000
 
     global cov, M2, mu, U, S
 
@@ -314,11 +336,15 @@ def covarianceJumpProposal(x, iter, beta):
         
     # small jump
     elif prob > 0.7:
-        scale = 0.4
+        scale = 0.2
 
     # large jump
     elif prob > 0.97:
         scale = 10
+    
+    # small-medium jump
+    elif prob > 0.6:
+        scale = 0.5
 
     # standard medium jump
     else:
@@ -335,12 +361,13 @@ def covarianceJumpProposal(x, iter, beta):
     ind = np.unique(np.random.randint(0, ndim, block))
     neff = len(ind)
     if beta > 1/100:
-        cd = 2.4 * np.sqrt(1/beta) / np.sqrt(neff) * scale
+        cd = 2.4 * np.sqrt(1/beta) / np.sqrt(2*neff) * scale
     else:
-        cd = 2.4 * 10 / np.sqrt(neff) * scale
+        cd = 2.4 * 10 / np.sqrt(2*neff) * scale
 
     y[ind] = y[ind] + np.random.randn(neff) * cd * np.sqrt(S[ind])
     q = np.dot(U, y)
+    #q = np.random.multivariate_normal(x, cd**2*cov)
 
     # need to make sure that we keep the pulsar phase constant, plus small offset
     for ct, p in enumerate(psr):
@@ -392,16 +419,26 @@ def DEJump(x, iter, beta):
 
     # only jump in subset of parameters
     prob = np.random.rand()
+
+    # jump in all parameters
     if prob > 0.9:
-        ind = np.unique(np.random.randint(0, ndim, ndim))
+        ind = [ii for ii in range(ndim)]
         neff = len(ind)
 
-    elif prob > 0.5:
-        ind = np.unique(np.random.randint(0, ndim, 5))
+    # sky location jump
+    elif prob < 0.3:
+        ind = [0, 1]
+        neff = len(ind)
+    
+    # mass-distance jump
+    elif prob > 0.7:
+        ind = [3, 4]
         neff = len(ind)
         
     else:
         ind = np.unique(np.random.randint(0, ndim, 1))
+        while ind == 0 or ind == 1 or ind == 3 or ind == 4:
+            ind = np.unique(np.random.randint(0, ndim, 1))
         neff = len(ind)
 
 
@@ -417,7 +454,7 @@ def DEJump(x, iter, beta):
             scale = 1.0
 
         else:
-            scale = 2.4/np.sqrt(neff) * np.random.randn()
+            scale = 2.4/np.sqrt(2*neff) 
 
         # jump
         q[ii] += scale * sigma
@@ -487,6 +524,8 @@ def pulsarDistanceJump(x, iter, beta):
 
     return q
 
+# TODO: make single component adaptive proposal
+
 
 # class that manages jump proposals
 class JumpProposals(object):
@@ -533,10 +572,10 @@ class JumpProposals(object):
         length = len(self.propCycle)
 
         # get random integers
-        index = np.random.randint(low=0, high=(length-1), size=length)
+        index = np.random.randint(0, (length-1), length)
 
         # randomize proposal cycle
-        self.randomizedPropCycle = [self.propCycle[index[ii]] for ii in range(len(index))]
+        self.randomizedPropCycle = [self.propCycle[ind] for ind in index]
 
 
     # call proposal functions from cycle
@@ -590,7 +629,7 @@ jumps.randomizeProposalCycle()
 jumps2 = JumpProposals()
 
 # add covariance jump proposals
-jumps2.addProposalToCycle(covarianceJumpProposal, 2*BIG)
+jumps2.addProposalToCycle(covarianceJumpProposal, BIG)
 
 # add small jump in pulsar phase
 jumps2.addProposalToCycle(pulsarPhaseJump, SMALL)
@@ -601,7 +640,7 @@ jumps2.addProposalToCycle(pulsarDistanceJump, 2*SMALL)
 # add correlated mass-distance jumps
 jumps2.addProposalToCycle(massDistanceJump, SMALL)
 
-# add correlated mass-distance jumps
+# add differential evolution jumps
 jumps2.addProposalToCycle(DEJump, 2*SMALL)
 
 # randomize cycle
@@ -632,16 +671,16 @@ def pulsarPhaseFix(L0, cosMu0, p0, mc0, omega0, L1, cosMu1, p1, mc1, omega1, \
     # compute new phase with small jump
     prob = np.random.rand()
     if prob > 0.8:
-        sigma = 0.5 * np.random.randn()
-
-    elif prob > 0.6:
         sigma = 0.1 * np.random.randn()
 
-    elif prob > 0.4:
+    elif prob > 0.6:
         sigma = 0.02 * np.random.randn()
 
+    elif prob > 0.4:
+        sigma = 0.002 * np.random.randn()
+
     else:
-        sigma = 0.004 * np.random.randn()
+        sigma = 0.005 * np.random.randn()
 
     if phaseJump == False: sigma = 0.0
     
@@ -681,15 +720,27 @@ tstep = np.array([25.2741, 7., 4.47502, 3.5236, 3.0232,
                   1.26579, 1.26424, 1.26271, 1.26121,
                   1.25973])
 
+Tmin = 1
 tstep = tstep[ndim-1]
-
 
 # set up temperature ladder
 ntemps = args.ntemps
 nthreads = args.nprocs
 
+# low temperature chain
+if args.ti == 0:
+    Tmax = 100
+    Tmin = 1
+    tstep = np.exp(np.log(Tmax)/ntemps)
+
+# high temperature chains
+elif args.ti == 1:
+    Tmax = 1e4
+    Tmin = 100
+    tstep = np.exp(np.log(Tmax)/ntemps)
+
 # geometrically spaced betas
-betas = np.exp(np.linspace(0, -(ntemps-1)*np.log(tstep), ntemps))
+betas = np.exp(np.linspace(-np.log(Tmin), -(ntemps)*np.log(tstep), ntemps))
 
 # pick starting values
 p0 = np.zeros((ntemps, ndim))
@@ -699,7 +750,11 @@ for ii in range(ntemps):
 
 # set initial frequency to be maximum likelihood value
 if args.freq is None:
-    p0[:,2] = np.log10(fmaxlike)
+    p0[0,2] = np.log10(fmaxlike)
+
+# if using injected values
+if args.inj:
+    p0[:,0:8] = true
 
 # if using strain, start at 0
 #p0[:,4] = 0.0
@@ -731,7 +786,8 @@ cyclic[1] = 2*np.pi
 cyclic[7] = 2*np.pi
 
 # initialize MH sampler
-sampler=PTSampler(ntemps, ndim, loglike, logprior, jumpProposals, threads=nthreads, betas=betas, cyclic=cyclic, Tskip=100)
+sampler=PTSampler(ntemps, ndim, loglike, logprior, jumpProposals, threads=nthreads,\
+                  betas=betas, cyclic=cyclic, Tskip=10)
 
 # set output file
 for ii in range(args.ntemps):
@@ -748,7 +804,10 @@ thin = 10
 ct = 0
 print 'Beginning Sampling in {0} dimensions\n'.format(ndim)
 tstart = time.time()
+times = np.zeros(N)
+times[0] = time.time()
 for pos, prob, state in sampler.sample(p0, iterations=N):
+    #print 'Total MCMC one step time = {0}'.format(time.time() - times[ct])
     if ct % isave == 0 and ct > 0:
 
         tstep = time.time() - tstart
@@ -772,11 +831,13 @@ for pos, prob, state in sampler.sample(p0, iterations=N):
 
         print 'Finished {0} of {1} iterations.'.format(ct, N)
         print 'Acceptance fraction = {0}'.format(sampler.acceptance_fraction)
+        print 'Tswap Acceptance fraction = {0}'.format(sampler.tswap_acceptance_fraction)
         print 'Time elapsed: {0} s'.format(tstep)
         print 'Approximate time remaining: {0} hr\n'.format(tstep/ct * (N-ct)/3600)
 
     # update counter
     ct += 1
+    times[ct] = time.time()
 
 
 

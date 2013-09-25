@@ -65,6 +65,26 @@ class PTPost(object):
 
         return beta * ll + lp, ll
 
+class JumpProposal(object):
+    """
+
+    Wrapper for Jump proposal for use with multiprocessing
+
+    """
+
+    def __init__(self, propJump, iter):
+
+        self._jump = propJump
+        self._iter = iter
+
+    def __call__(self, params):
+
+        (x, beta) = params
+
+        q = self._jump(x, self._iter, beta)
+
+        return q
+
 
 class PTSampler(object):
     """
@@ -241,36 +261,46 @@ class PTSampler(object):
             if np.random.rand() < 1/self.Tskip:
                 p, lnprob, logl = self._temperature_swaps(p, lnprob, logl)
             
+
+            # propose jump in parameter space
+            #TODO: run this in parallel?
+            #jf = JumpProposal(self.propJump, self.iterations)
+            #if self.pool is None:
+            #    results = list(map(jf, [(p[j, :], self.betas[j])\
+            #                                      for j in range(self.ntemps)]))           
+
+            #else:
+            #    results = list(self.pool.map(jf, [(p[j, :], self.betas[j])\
+            #                                      for j in range(self.ntemps)]))
+            #   
+            #q = np.array([r for r in results])
+            q = [self._get_jump(p[j,:], self.betas[j]) for j in range(self.ntemps)]
+            q = [self._wrap_params(q[ii]) for ii in range(self.ntemps)]
+            q = np.array(q)
+
+            # evaluate likelihoods in parallel
+            fn = PTPost(self.logl, self.logp, self.args)
+            if self.pool is None:
+                results = list(map(fn, [(q[j, :],self.betas[j])\
+                                       for j in range(self.ntemps)]))
             else:
+                results = list(self.pool.map(fn, [(q[j, :], self.betas[j])\
+                                                  for j in range(self.ntemps)]))
 
-                # propose jump in parameter space
-                q=[self._get_jump(p[ii,:],self.betas[ii]) for ii in range(self.ntemps)]
-                q=[self._wrap_params(q[ii]) for ii in range(self.ntemps)]
-                q=np.array(q)
+            newlnprob = np.array([r[0] for r in results])
+            newlogl = np.array([r[1] for r in results])
+            diff=newlnprob-lnprob
 
-                # evaluate likelihoods in parallel
-                fn = PTPost(self.logl, self.logp, self.args)
-                if self.pool is None:
-                    results = list(map(fn, [(q[j, :],self.betas[j])\
-                                           for j in range(self.ntemps)]))
-                else:
-                    results = list(self.pool.map(fn, [(q[j, :],self.betas[j])\
-                                                      for j in range(self.ntemps)]))
+            # determine if accepted or not
+            for j in range(self.ntemps):
+                if diff[j] < 0:
+                    diff[j]=np.exp(diff[j])-nr.rand()
 
-                newlnprob = np.array([r[0] for r in results])
-                newlogl = np.array([r[1] for r in results])
-                diff=newlnprob-lnprob
-
-                # determine if accepted or not
-                for j in range(self.ntemps):
-                    if diff[j] < 0:
-                        diff[j]=np.exp(diff[j])-nr.rand()
-
-                    if diff[j] >= 0:
-                        p[j,:]=q[j,:]
-                        lnprob[j]=newlnprob[j]
-                        logl[j]=newlogl[j]
-                        self.naccepted[j]+=1
+                if diff[j] >= 0:
+                    p[j,:]=q[j,:]
+                    lnprob[j]=newlnprob[j]
+                    logl[j]=newlogl[j]
+                    self.naccepted[j]+=1
 
             # save chain values
             if (i+1) % thin == 0:
@@ -296,7 +326,7 @@ class PTSampler(object):
             bi1 = self.betas[i - 1]
             
             # propose jump with probability given by beta
-            if nr.rand() < bi1:
+            if nr.rand() < bi1*self.Tskip:
 
                 dbeta = bi1 - bi
 

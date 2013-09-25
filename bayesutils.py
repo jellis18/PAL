@@ -413,7 +413,7 @@ def plotSkyMap(raSample, decSample, nside=64, contours=None, colorbar=True, \
     # add colorbar and title
     if colorbar:
         plt.colorbar(orientation='horizontal')
-        plt.suptitle(r'$\log\, p(\alpha,\delta|d)$', y=0.1)
+        plt.suptitle(r'$p(\alpha,\delta|d)$', y=0.1)
 
     # save skymap
     plt.savefig('skymap.pdf', bbox_inches='tight')
