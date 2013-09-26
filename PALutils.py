@@ -416,7 +416,7 @@ def sumTermCovarianceMatrix_fast(tm, fL, gam):
     return sum
 
 
-def createGHmatrix(toa,err,res,Gm,fidelity):
+def createGHmatrix(toa,err,res,G,fidelity):
     """
     Create "H" compression matrix as defined in van Haasteren 2013(b).
     Multiplies with "G" matrix to create the "GH" matrix, which can simply replace
