@@ -147,7 +147,7 @@ def createResidualsFast(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pd
     Function to create GW incuced residuals from a SMBMB as 
     defined in Ellis et. al 2012,2013. Trys to be smart about it
 
-    @param psr: pulsar object for single pulsar
+    @param psr: list of pulsar objects for all pulsars
     @param gwtheta: Polar angle of GW source in celestial coords [radians]
     @param gwphi: Azimuthal angle of GW source in celestial coords [radians]
     @param mc: Chirp mass of SMBMB [solar masses]
@@ -416,7 +416,7 @@ def sumTermCovarianceMatrix_fast(tm, fL, gam):
     return sum
 
 
-def createGHmatrix(toa,err,res,G,fidelity):
+def createGHmatrix(toa, err, res, G, fidelity):
     """
     Create "H" compression matrix as defined in van Haasteren 2013(b).
     Multiplies with "G" matrix to create the "GH" matrix, which can simply replace
@@ -437,31 +437,30 @@ def createGHmatrix(toa,err,res,G,fidelity):
     GCnoiseG = np.dot(G.T,np.dot(np.diag(err**2.0)*np.eye(len(err)),G))
     
     # forming the unscaled (Agwb=1) covariance matrix of GWB-induced residuals
-    t1, t2 = np.meshgrid(toa, toa)
-    tm = np.abs(t1-t2).astype(np.float64)/365.25
-    Tspan = tm.max()
-    fL = 1/(10.0*Tspan)
-    x = 2*np.pi*fL*tm
-    gam = 13./3.
-    Cgwb = ((1.0**2.0)*(fL**(1.-gam))/(12.0*np.pi**2.0))*((ss.gamma(1.-gam)*np.sin(np.pi*gam/2.)*ne.evaluate("x**(gam-1.)")) \
-                                                                         -sumTermCovarianceMatrix_fast(tm, fL, gam))
-    Cgwb *= ((365.25*86400.0)**2.0) # in seconds
-    GCgwbG = np.dot(G.T,np.dot(Cgwb,G))
+    tm = createTimeLags(toa, toa)
+    Cgwb = createRedNoiseCovarianceMatrix(tm, 1, 13/3)
+    GCgwbG = np.dot(G.T, np.dot(Cgwb, G))
     
     # approximate the whitening matrix with the inverse root of the marginalised error-bar matrix
-    CgwbMargWhite = np.dot(sl.sqrtm(sl.inv(GCnoiseG)).T,np.dot(GCgwbG,sl.sqrtm(sl.inv(GCnoiseG))))
-    # compute the eigendecomposition of the 'whitened' GWB covariance matrix; order the eigenvalues largest first
+    CgwbMargWhite = np.dot(sl.sqrtm(sl.inv(GCnoiseG)).T, \
+                    np.dot(GCgwbG, sl.sqrtm(sl.inv(GCnoiseG))))
+
+    # compute the eigendecomposition of the 'whitened' GWB covariance matrix; 
+    # order the eigenvalues largest first
     eigVal,eigVec = sl.eigh(CgwbMargWhite)
     idx = eigVal.argsort()[::-1] 
     eigVal = eigVal[idx]
     eigVec = eigVec[:,idx]
     
     # computing a rough estimate of the GWB amplitude for a strain-spectrum slope of -2/3
-    sigma_gwb = np.std(res)*1e-15
-    Amp = (sigma_gwb/(1.37*(10.0**(-9.0))))/(Tspan**(5.0/3.0))
+    sigma_gwb = np.std(res) * 1e-15
+    Amp = (sigma_gwb/(1.37*(10**(-9)))) / (Tspan**(5/3))
     
-    # looping over eigenvalues until the fidelity criterion of van Haasteren 2013(b) is satisfied; only the 'principal' eigenvectors are retained
-    index = np.amax(np.where(np.cumsum((eigVal/(1.0+(Amp**2.0)*eigVal))**2.0)/np.sum((eigVal/(1.0+(Amp**2.0)*eigVal))**2.0).real <= fidelity)[0]) 
+    # looping over eigenvalues until the fidelity criterion of van Haasteren 2013(b) 
+    # is satisfied; only the 'principal' eigenvectors are retained
+    index = np.amax(np.where(np.cumsum((eigVal/(1+(Amp**2.0)*eigVal))**2.0)/ \
+                             np.sum((eigVal/(1.0+(Amp**2.0)*eigVal))**2.0).real \
+                             <= fidelity)[0]) 
     
     # forming the data-compression matrix
     H = np.dot(sl.sqrtm(sl.inv(GCnoiseG)).real,eigVec.T[:index+1].T.real)
