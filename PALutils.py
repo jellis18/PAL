@@ -416,6 +416,59 @@ def sumTermCovarianceMatrix_fast(tm, fL, gam):
     return sum
 
 
+def createGHmatrix(toa,err,res,G,fidelity):
+    """
+    Create "H" compression matrix as defined in van Haasteren 2013(b).
+    Multiplies with "G" matrix to create the "GH" matrix, which can simply replace
+    the "G" matrix in all likelihoods which are marginalised over the timing-model
+
+
+    @param toa: times-of-arrival (in days) for psr
+    @param err: error bars on toas (in seconds)
+    @param res: residuals (in seconds) of psr
+    @param G: G matrix as defined in van Haasteren et al 2013(a)
+    @param fidelity: fraction of total sensitivity retained in compressed data
+
+    @return: GH matrix, which can simply replace "G" matrix in likelihood
+
+    """
+
+    # forming the error-bar covariance matrix, sandwiched with G matrices
+    GCnoiseG = np.dot(G.T,np.dot(np.diag(err**2.0)*np.eye(len(err)),G))
+    
+    # forming the unscaled (Agwb=1) covariance matrix of GWB-induced residuals
+    t1, t2 = np.meshgrid(toa, toa)
+    tm = np.abs(t1-t2).astype(np.float64)/365.25
+    Tspan = tm.max()
+    fL = 1/(10.0*Tspan)
+    x = 2*np.pi*fL*tm
+    gam = 13./3.
+    Cgwb = ((1.0**2.0)*(fL**(1.-gam))/(12.0*np.pi**2.0))*((ss.gamma(1.-gam)*np.sin(np.pi*gam/2.)*ne.evaluate("x**(gam-1.)")) \
+                                                                         -sumTermCovarianceMatrix_fast(tm, fL, gam))
+    Cgwb *= ((365.25*86400.0)**2.0) # in seconds
+    GCgwbG = np.dot(G.T,np.dot(Cgwb,G))
+    
+    # approximate the whitening matrix with the inverse root of the marginalised error-bar matrix
+    CgwbMargWhite = np.dot(sl.sqrtm(sl.inv(GCnoiseG)).T,np.dot(GCgwbG,sl.sqrtm(sl.inv(GCnoiseG))))
+    # compute the eigendecomposition of the 'whitened' GWB covariance matrix; order the eigenvalues largest first
+    eigVal,eigVec = sl.eigh(CgwbMargWhite)
+    idx = eigVal.argsort()[::-1] 
+    eigVal = eigVal[idx]
+    eigVec = eigVec[:,idx]
+    
+    # computing a rough estimate of the GWB amplitude for a strain-spectrum slope of -2/3
+    sigma_gwb = np.std(res)*1e-15
+    Amp = (sigma_gwb/(1.37*(10.0**(-9.0))))/(Tspan**(5.0/3.0))
+    
+    # looping over eigenvalues until the fidelity criterion of van Haasteren 2013(b) is satisfied; only the 'principal' eigenvectors are retained
+    index = np.amax(np.where(np.cumsum((eigVal/(1.0+(Amp**2.0)*eigVal))**2.0)/np.sum((eigVal/(1.0+(Amp**2.0)*eigVal))**2.0).real <= fidelity)[0]) 
+    
+    # forming the data-compression matrix
+    H = np.dot(sl.sqrtm(sl.inv(GCnoiseG)).real,eigVec.T[:index+1].T.real)
+    
+    return np.dot(G,H)
+
+
 
 def createRedNoiseCovarianceMatrix(tmcopy, Amp, gam, fH=None, fast=False):
     """
