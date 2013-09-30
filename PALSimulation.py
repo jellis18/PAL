@@ -98,11 +98,14 @@ if args.pdistPrior:
     for ct, p in enumerate(psr):
 
         # draw pulsar distance from prior
-        p.dist += np.random.randn() * p.distErr
+        tmp = p.dist +  np.random.randn() * p.distErr
 
         # make sure distance is not negative
-        while p.dist < 0:
-            p.dist += np.random.randn() * p.distErr
+        while tmp < 0:
+            tmp = p.dist + np.random.randn() * p.distErr
+
+        # set values
+        p.dist = tmp
 
 # number of pulsars
 npsr = len(psr)
