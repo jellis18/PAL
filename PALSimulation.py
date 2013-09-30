@@ -63,6 +63,8 @@ parser.add_option('--tim', dest='tim', action='store', type=str, default=None,
                    help='Output new tim files (default = None, dont output tim files)')
 parser.add_option('--real', dest='real', action='store_true', default=False,
                    help='Inject in to real data in hdf5 file (default = False, use idealized TOAs)')
+parser.add_option('--drawPdistPrior', dest='pdistPrior', action='store_true', default=False,
+                   help='Draw simulated pulsar distance from prior instead of using mean value)')
 
 
 # parse arguments
@@ -90,6 +92,17 @@ pulsargroup = pfile['Data']['Pulsars']
 # fill in pulsar class
 psr = [PALpulsarInit.pulsar(pulsargroup[key], addNoise=True, addGmatrix=True) \
                 for key in pulsargroup]
+
+if args.pdistPrior:
+    print 'Drawing injected pulsar distance from prior.'
+    for ct, p in enumerate(psr):
+
+        # draw pulsar distance from prior
+        p.dist += np.random.randn() * p.distErr
+
+        # make sure distance is not negative
+        while p.dist < 0:
+            p.dist += np.random.randn() * p.distErr
 
 # number of pulsars
 npsr = len(psr)
@@ -365,6 +378,7 @@ injectiongroup.create_dataset('GWPOLARIZATION', data = args.gwpolarization)
 injectiongroup.create_dataset('GWCHIRPMASS', data = args.gwchirpmass)
 injectiongroup.create_dataset('GWDISTANCE', data = args.gwdist)
 injectiongroup.create_dataset('GWFREQUENCY', data = args.gwfreq)
+injectiongroup.create_dataset('PDIST', data = [(p.name, p.dist) for p in psr])
 
 
 # close hdf5 file
