@@ -65,6 +65,8 @@ parser.add_option('--real', dest='real', action='store_true', default=False,
                    help='Inject in to real data in hdf5 file (default = False, use idealized TOAs)')
 parser.add_option('--drawPdistPrior', dest='pdistPrior', action='store_true', default=False,
                    help='Draw simulated pulsar distance from prior instead of using mean value)')
+parser.add_option('--PdistSeed', dest='pdistSeed', action='store', type=int, default=0,
+                   help='Random number seed for drawing pulsar distances from prior (default = 0, no seed)')
 
 
 # parse arguments
@@ -97,6 +99,11 @@ if args.pdistPrior:
     print 'Drawing injected pulsar distance from prior.'
     for ct, p in enumerate(psr):
 
+        # set random number seed
+        if args.pdistSeed:
+            print 'Using fixed random number seed for drawing pulsar distance from prior!'
+            np.random.seed(args.pdistSeed*(ct+1))
+
         # draw pulsar distance from prior
         tmp = p.dist +  np.random.randn() * p.distErr
 
@@ -107,6 +114,8 @@ if args.pdistPrior:
         # set values
         p.dist = tmp
 
+# resetting seed to be taken from clock
+np.random.seed(seed=None)
 # number of pulsars
 npsr = len(psr)
 
