@@ -365,9 +365,10 @@ def covarianceJumpProposal(x, iter, beta):
     else:
         cd = 2.4 * 10 / np.sqrt(2*neff) * scale
 
-    y[ind] = y[ind] + np.random.randn(neff) * cd * np.sqrt(S[ind])
-    q = np.dot(U, y)
-    #q = np.random.multivariate_normal(x, cd**2*cov)
+    #y[ind] = y[ind] + np.random.randn(neff) * cd * np.sqrt(S[ind])
+    #q = np.dot(U, y)
+    cd = 2.4/np.sqrt(2*ndim) * scale * np.sqrt(1/beta)
+    q = np.random.multivariate_normal(x, cd**2*cov)
 
     # need to make sure that we keep the pulsar phase constant, plus small offset
     for ct, p in enumerate(psr):
@@ -441,20 +442,21 @@ def DEJump(x, iter, beta):
             ind = np.unique(np.random.randint(0, ndim, 1))
         neff = len(ind)
 
+    # get jump scale size
+        prob = np.random.rand()
+
+    # mode jump
+    if prob > 0.5:
+        scale = 1.0
+
+    else:
+        scale = np.random.rand()
+
 
     for ii in ind:
         
         # jump size
         sigma = sampler.chain[0, mm, ii] - sampler.chain[0, nn, ii]
-
-        prob = np.random.rand()
-
-        # mode jump
-        if prob > 0.9:
-            scale = 1.0
-
-        else:
-            scale = 2.4/np.sqrt(2*neff) 
 
         # jump
         q[ii] += scale * sigma
@@ -754,7 +756,7 @@ if args.freq is None:
 
 # if using injected values
 if args.inj:
-    p0[:,0:8] = true
+    p0[:,0:8] = true + np.random.randn(8)*true/100
 
 # if using strain, start at 0
 #p0[:,4] = 0.0
@@ -774,7 +776,7 @@ cov_diag[4] = 0.2
 cov_diag[5:7] = 0.2
 cov_diag[7] = 0.1
 cov_diag[8:] = np.array([p.distErr for p in psr])
-cov = np.diag((cov_diag/5)**2)
+cov = np.diag((cov_diag/10)**2)
 U, S, V = np.linalg.svd(cov)
 
 
@@ -787,7 +789,7 @@ cyclic[7] = 2*np.pi
 
 # initialize MH sampler
 sampler=PTSampler(ntemps, ndim, loglike, logprior, jumpProposals, threads=nthreads,\
-                  betas=betas, cyclic=cyclic, Tskip=10)
+                  betas=betas, cyclic=cyclic, Tskip=100)
 
 # set output file
 for ii in range(args.ntemps):

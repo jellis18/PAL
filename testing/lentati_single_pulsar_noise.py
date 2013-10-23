@@ -11,7 +11,7 @@ import h5py as h5
 import pymultinest
 import scipy.linalg as sl
 import argparse
-import os
+import os, math
 
 parser = argparse.ArgumentParser(description = 'Run Lentati style noise estimation')
 
@@ -36,6 +36,8 @@ parser.add_argument('--single', dest='single', action='store_true', default=Fals
                    help='Have one frequency and amplitude free to look for single frequency source (default = False)')
 parser.add_argument('--ss', dest='ss', action='store', type=int, default=1,
                    help='How may free frequency components to include (default = 1)')
+parser.add_argument('--order', dest='order', action='store_true',default=False,
+                   help='Do multiple ordered frequencies (default = False)')
 
 
 # parse arguments
@@ -64,6 +66,16 @@ psr = PALpulsarInit.pulsar(pulsargroup, addGmatrix=True)
 if args.nmodes != 0:
     F, f = PALutils.createfourierdesignmatrix(psr.toas, args.nmodes, freq=True)
 
+Tspan = psr.toas.max() - psr.toas.min()
+##fsred = np.array([1.599558028614668e-07, 5.116818355403073e-08]) # 1855
+#fsred = np.array([9.549925860214369e-08]) # 1909
+#fsred = np.array([1/Tspan, 9.772372209558111e-08]) # 1909
+#
+#F = np.zeros((psr.ntoa, 2*len(fsred)))
+#F[:,0::2] = np.cos(2*np.pi*np.outer(psr.toas, fsred))
+#F[:,1::2] = np.sin(2*np.pi*np.outer(psr.toas, fsred))
+
+
 # get G matrices
 psr.G = PALutils.createGmatrix(psr.dmatrix)
 
@@ -79,12 +91,13 @@ proj = np.dot(u.T, np.dot(Linv, psr.G.T))
 # project residuals onto new basis
 psr.res = np.dot(proj, psr.res)
 
-if args.nmodes != 0:
+if args.nmodes != 0 and args.single == False:
+    print 'Projecting F matrix'
     F = np.dot(proj, F)
 
 
 # parameterize by power law
-if args.powerlaw and args.nmodes != 0:
+if args.powerlaw and args.nmodes != 0 and args.single == False:
     print 'Parameterizing Power spectrum coefficients by a power law'
 
     def myprior(cube, ndim, nparams):
@@ -245,7 +258,7 @@ if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.bro
     nlive = 500
 
 # parameterize by independent coefficients plus single
-if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.broken == False \
+if args.powerlaw == False and args.fc == False and args.broken == False \
                     and args.independent and args.single == True :
 
     print 'Parameterizing Power spectrum coefficients by {0} independent coefficients and {1} single source'.format(args.nmodes, args.ss)
@@ -258,8 +271,8 @@ if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.bro
         qmax = -5
         rhomin = -18
         rhomax = -8
-        fmin = -9
-        fmax = np.log10(4e-7)
+        fmin = np.log10(1/Tspan)
+        fmax = np.log10(1e-5)
 
         # convert from hypercube
         cube[0] = emin + cube[0] * (emax - emin)
@@ -281,16 +294,30 @@ if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.bro
         for ii in range(args.nmodes+args.ss):
             rho[ii] = cube[ii+2+args.ss]
 
-        F1 = list(PALutils.createfourierdesignmatrix(psr.toas, args.nmodes).T)
-        for ii in range(args.ss):
-            F1.append(np.cos(2*np.pi*fs[ii]*psr.toas))
-            F1.append(np.sin(2*np.pi*fs[ii]*psr.toas))
+        # check to make sure frequencies are ordered
+        ordered = np.all([fs[ii] < fs[ii+1] for ii in range(args.ss-1)])
 
-        F = np.array(F1).T
+        if ordered:
 
-        F = np.dot(proj, F)
-       
-        loglike = PALLikelihoods.lentatiMarginalizedLike(psr, F, s, rho, efac, equad)
+            #F1 = list(PALutils.createfourierdesignmatrix(psr.toas, args.nmodes).T)
+            if args.nmodes > 0:
+                F1 = list(F.T)
+            else:
+                F1 = []
+
+            for ii in range(args.ss):
+                F1.append(np.cos(2*np.pi*fs[ii]*psr.toas))
+                F1.append(np.sin(2*np.pi*fs[ii]*psr.toas))
+
+            F2 = np.array(F1).T
+
+            F2 = np.dot(proj, F2)
+           
+            loglike = PALLikelihoods.lentatiMarginalizedLike(psr, F2, s, rho, efac, equad)
+
+        else:
+
+            loglike = -np.inf
 
         #print efac, rho, loglike
 
@@ -300,25 +327,26 @@ if args.powerlaw == False and args.nmodes != 0 and args.fc == False and args.bro
     n_params = args.nmodes + args.ss*2 + 2
     nlive = 500
 
+
     # parameterize by powerlaw plus single
-if args.powerlaw  and args.nmodes != 0 and args.fc == False and args.broken == False \
+if args.powerlaw and args.fc == False and args.broken == False \
                     and args.independent == False and args.single == True :
 
     print 'Parameterizing Power spectrum by power law and {0} single source'.format(args.ss)
     
     def myprior(cube, ndim, nparams):
         # define parameter ranges
-        emin = 0.1
+        emin = 0.0
         emax = 5
         qmin = -10
         qmax = -5
         gamMin = 0.0
         gamMax = 7.0
-        lAmin = -16
-        lAmax = -11
+        lAmin = -20
+        lAmax = -10
         rhomin = -18
         rhomax = -8
-        fmin = -9
+        fmin = np.log10(1/Tspan)
         fmax = np.log10(1e-5)
 
         # convert from hypercube
@@ -344,30 +372,37 @@ if args.powerlaw  and args.nmodes != 0 and args.fc == False and args.broken == F
         rho2 = np.zeros(args.ss)
         for ii in range(args.ss):
             rho2[ii] = cube[ii+4+args.ss]
-
-        F1 = list(PALutils.createfourierdesignmatrix(psr.toas, args.nmodes).T)
-        tmp, f = PALutils.createfourierdesignmatrix(psr.toas, args.nmodes, freq=True)
-        for ii in range(args.ss):
-            F1.append(np.cos(2*np.pi*fs[ii]*psr.toas))
-            F1.append(np.sin(2*np.pi*fs[ii]*psr.toas))
-
-        F = np.array(F1).T
-        F = np.dot(proj, F)
-
-        # compute rho from A and gam# compute total time span of data
-        Tspan = psr.toas.max() - psr.toas.min()
-
-        # get power spectrum coefficients
-        f1yr = 1/3.16e7
-        rho = list(np.log10(A**2/12/np.pi**2 * f1yr**(gam-3) * f**(-gam)/Tspan))
-
-        # compute total rho
-        for ii in range(args.ss):
-            rho.append(rho2[ii])
-
         
-       
-        loglike = PALLikelihoods.lentatiMarginalizedLike(psr, F, s, np.array(rho), efac, equad)
+        # check to make sure frequencies are ordered
+        ordered = np.all([fs[ii] < fs[ii+1] for ii in range(args.ss-1)])
+
+        if ordered:
+
+            F1 = list(PALutils.createfourierdesignmatrix(psr.toas, args.nmodes).T)
+            tmp, f = PALutils.createfourierdesignmatrix(psr.toas, args.nmodes, freq=True)
+            for ii in range(args.ss):
+                F1.append(np.cos(2*np.pi*fs[ii]*psr.toas))
+                F1.append(np.sin(2*np.pi*fs[ii]*psr.toas))
+
+            F = np.array(F1).T
+            F = np.dot(proj, F)
+
+            # compute rho from A and gam# compute total time span of data
+            Tspan = psr.toas.max() - psr.toas.min()
+
+            # get power spectrum coefficients
+            f1yr = 1/3.16e7
+            rho = list(np.log10(A**2/12/np.pi**2 * f1yr**(gam-3) * f**(-gam)/Tspan))
+
+            # compute total rho
+            for ii in range(args.ss):
+                rho.append(rho2[ii])
+
+            loglike = PALLikelihoods.lentatiMarginalizedLike(psr, F, s, np.array(rho), efac**2, equad)
+            
+        else:
+
+            loglike = -np.inf
 
         #print efac, rho, loglike
 
@@ -410,10 +445,11 @@ if args.powerlaw == False and args.nmodes == 0 and args.fc == False and args.bro
 
 # run MultiNest
 pymultinest.run(myloglike, myprior, n_params, resume = False, \
-                verbose = True, sampling_efficiency = 0.8, \
+                verbose = True, sampling_efficiency = 0.3, \
                 outputfiles_basename =  args.outDir+'/test', \
                 n_iter_before_update=5, n_live_points=nlive, \
-                const_efficiency_mode=False)
+                const_efficiency_mode=False, \
+                n_clustering_params=n_params)
 
 ## Importance nested sampling
 #nlive = 500

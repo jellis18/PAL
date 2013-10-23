@@ -80,6 +80,7 @@ def createResiduals(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pdist=
 
     # orbital frequency
     w0 = np.pi * fgw
+    phase0 /= 2 # orbital phase
     omegadot = 96/5 * mc**(5/3) * w0**(11/3)
 
     # evolution
@@ -277,6 +278,7 @@ def createResidualsFast(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pd
     return res
 
 
+
 def computeLuminosityDistance(z):
     """
 
@@ -376,6 +378,40 @@ def createTimeLags(toa1, toa2, round=True):
         tm = np.where(tm<hr, 0.0, tm)
         
     return tm
+
+def exploderMatrix(toas):
+    """
+    Compute exploder matrix for daily averaging
+
+    @param toas: array of toas
+
+    @return: exploder matrix and daily averaged toas
+
+    """
+
+    spd = 3600.0 * 24.0     # Seconds per day
+
+    processed = np.array([0]*len(toas), dtype=np.bool)  # No toas processed yet
+    U = np.zeros((len(toas), 0))
+    avetoas = np.empty(0)
+
+    while not np.all(processed):
+        npindex = np.where(processed == False)[0]
+        ind = npindex[0]
+        satmin = toas[ind] - spd
+        satmax = toas[ind] + spd
+
+        dailyind = np.where(np.logical_and(toas > satmin, toas < satmax))[0]
+
+        newcol = np.zeros((len(toas)))
+        newcol[dailyind] = 1.0
+
+        U = np.append(U, np.array([newcol]).T, axis=1)
+        avetoas = np.append(avetoas, np.mean(toas[dailyind]))
+        processed[dailyind] = True
+
+    return avetoas, U
+
 
 
 def sumTermCovarianceMatrix(tm, fL, gam, nsteps):

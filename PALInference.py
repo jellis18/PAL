@@ -29,10 +29,10 @@ class PALInferenceVariables(object):
     
     
     @param vary: The type of parameter [string]
-                 PTA_INFERENCE_LINEAR:      A linear parameter that only has a max and min value
-                 PTA_INFERENCE_CYCLIC:      A cyclic parameter that varies from 0 -> 2pi
-                 PTA_INFERENCE_REFLECTIVE:  A reflective parameter that is not cyclic
-                 PTA_INFERENCE_FIXED:       A fixed paramter that is not varied
+                 PAL_INFERENCE_LINEAR:      A linear parameter that only has a max and min value
+                 PAL_INFERENCE_CYCLIC:      A cyclic parameter that varies from 0 -> 2pi
+                 PAL_INFERENCE_REFLECTIVE:  A reflective parameter that is not cyclic
+                 PAL_INFERENCE_FIXED:       A fixed paramter that is not varied
     
     @param proposed: The proposed value of the parameter [float]
     
@@ -185,4 +185,75 @@ class runState(object):
 
         # initialize acceptance rate
         self.acc = np.zeros(N)
+
+
+
+######################## Prototype PALInference design ######################
+
+class PALInference(object):
+
+    # stores all options (maybe a seperate options class for analysis kind vs sampler kind)
+    # stores likelihood function and prior funtion
+    # stores dictionary of parameter classes
+
+
+    # MCMC Specifics (maybe make this a subclass)
+
+    def tempLadder(): 
+
+        # construct temperature ladder for different situations
+
+    def addJumpProposalToCycle():
+
+        # add a jump proposal to the cycle with a given weight (maybe probability)
+
+    def adaptProposalStepSize():
+
+        # use both single and correlated adaptation
+
+    def randomizeProposalCycle():
+
+        # randomize proposal cycle to keep detailed balance
+
+    def updateJumpProposalStatistics():
+
+        # keep track of jump proposal statistics
+
+    def initializeMPI():
+
+        # initialize MPI if using it for MCMC
+
+    def broadCastAdaptiveCovariance():
+
+        # broadcast covariance matrix from T = 1 chain
+
+    def broadCastDiffEvBuffer():
+
+        # broadcast points from T = 1 chain to use for differential evolution
+
+    def runPTMCMC():
+
+        # run PTMCMC algorith
+    
+    ## MultiNest Options
+
+    def convertHyperCubeToPhysicalParams():
+
+        # convert parameters from hypercube to physical parameters
+
+    def runMultiNest():
+
+        #run MultiNest
+
+    ## emcee ##
+
+    def initializeWalkers():
+
+
+    def runEmcee()
+
+
+
+    
+
 

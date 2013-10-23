@@ -389,7 +389,7 @@ class pulsar(object):
     
     """
 
-    def __init__(self,pulsargroup, addNoise=False, addGmatrix=True):
+    def __init__(self, pulsargroup, addNoise=False, addGmatrix=True):
 
 
         # loop though keys in pulsargroup and fill in psr attributes that are needed for GW analysis
