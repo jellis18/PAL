@@ -584,71 +584,71 @@ def lentatiMarginalizedLikeCoarse2(psr, F, s, U, rho, efac, equad, cequad):
     """
 
     # compute d
-    d = np.dot(U.T, psr.res/(efac*s + equad**2))
+    d = np.dot(U.T, psr.res/(efac**2*s + equad**2))
 
     # compute X
-    N = 1/(efac*s + equad**2)
+    N = 1/(efac**2*s + equad**2)
     right = (N*U.T).T
     X = np.dot(U.T, right)
 
     if np.any(rho == -np.inf):
           
-        logdet_N = np.sum(np.log(2*np.pi*(efac*s + equad**2)))
+        logdet_N = np.sum(np.log(2*np.pi*(efac**2*s + equad**2)))
         logdet_Q = np.sum(np.log(np.ones(len(d))*cequad**2))
         Sigma = np.eye(len(d))/cequad**2 + X 
         cf = sl.cho_factor(Sigma)
         expval2 = sl.cho_solve(cf, d)
         logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
-        dtNdt = np.sum(psr.res**2/(efac*s + equad**2))
+        dtNdt = np.sum(psr.res**2/(efac**2*s + equad**2))
         logLike = -0.5 * (logdet_N + logdet_Q + logdet_Sigma + dtNdt - np.dot(d, expval2))
 
     else:
 
-        # compute Fq
-        Fq = F/cequad**2
-
-        # compute Sigma
-        FtQF = np.dot(F.T, F) / cequad**2
-
         arr = np.zeros(2*len(rho))
         arr[0::2] = rho
         arr[1::2] = rho
-      
-        Sigma = FtQF + np.diag(1/10**arr)
 
-        # sigma inverse
-        cf = sl.cho_factor(Sigma)
-        Sigma_inv = sl.cho_solve(cf, np.eye(Sigma.shape[0]))
-        logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
+        # compute Y
+        right = (10**arr*F).T
+        Y = np.dot(F, right) + np.diag(np.ones(len(d))*cequad**2)
 
-        # total array to invert
-        tot = np.diag(np.ones(len(d))/cequad**2) - np.dot(Fq, np.dot(Sigma_inv, Fq.T)) + X
+        # get determinant and inverse of Y
+        try:
+            cf = sl.cho_factor(Y)
+            Yinv = sl.cho_solve(cf, np.eye(Y.shape[0]))
+            logdet_Y = np.sum(2*np.log(np.diag(cf[0])))
+        except np.linalg.LinAlgError:
+            #return -np.inf
+            print 'Cholesky Decomposition Failed!! Using SVD instead'
+            u,ss,v = sl.svd(Y)
+            right = (1/ss*u).T
+            Yinv = np.dot(u, right)
+            logdet_Y = np.sum(np.log(ss))
+
+
+        # compute Sigma
+        Sigma = X + Yinv
 
         # first exponential term
-        expval1 = np.sum(psr.res**2/(efac*s + equad**2))
+        expval1 = np.sum(psr.res**2/(efac**2*s + equad**2))
 
         # cholesky decomp for second term in exponential
         try:
-            cf = sl.cho_factor(tot)
+            cf = sl.cho_factor(Sigma)
             expval2 = sl.cho_solve(cf, d)
-            logdet_tot = np.sum(2*np.log(np.diag(cf[0])))
+            logdet_Sigma = np.sum(2*np.log(np.diag(cf[0])))
 
         except np.linalg.LinAlgError:
             #return -np.inf
             print 'Cholesky Decomposition Failed!! Using SVD instead'
-            u,ss,v = sl.svd(tot)
-            expval2 = np.dot(u, 1/ss*np.dot(u.T, d))
-            logdet_tot = np.sum(np.log(ss))
+            u,ss,v = sl.svd(Sigma)
+            right = (1/ss*u).T
+            expval2 = np.dot(u, np.dot(right, d))
+            logdet_Sigma = np.sum(np.log(ss))
 
-        logdet_Phi = np.sum(np.log(10**arr))
+        logdet_N = np.sum(np.log(2*np.pi*(efac**2*s + equad**2)))
 
-        logdet_N = np.sum(np.log(2*np.pi*(efac*s + equad**2)))
-
-        logdet_Q = np.sum(np.log(np.ones(len(d))*cequad**2))
-
-        dtNdt = np.sum(psr.res**2/(efac*s + equad**2))
-
-        logLike = -0.5 * (logdet_N + logdet_Phi + logdet_Sigma + logdet_tot + logdet_Q)\
+        logLike = -0.5 * (logdet_N + logdet_Y + logdet_Sigma)\
                         - 0.5 * (expval1 - np.dot(d, expval2))
 
     #print logdet_Sigma, logdet_Phi, W**2*np.dot(d, expval2)

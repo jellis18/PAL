@@ -59,6 +59,9 @@ class PTSampler(object):
 
         # initialize proposal cycle
         self.propCycle = []
+
+        # indicator for auxilary jumps
+        self.aux = None
         
 
     def sample(self, p0, Niter, Tmin=1, Tmax=10, Tskip=100, \
@@ -552,6 +555,20 @@ class PTSampler(object):
             self.propCycle.append(func)
 
 
+    # add auxilary jump proposal distribution functions
+    def addAuxilaryJump(self, func):
+        """
+        Add auxilary jump proposal distribution. This will be called after every
+        standard jump proposal. Examples include cyclic boundary conditions and 
+        pulsar phase fixes
+
+        @param func: jump proposal function
+
+        """
+        
+        # set auxilary jump
+        self.aux = func
+
     # randomized proposal cycle
     def randomizeProposalCycle(self):
         """
@@ -582,12 +599,15 @@ class PTSampler(object):
         # call function
         q, qxy = self.randomizedPropCycle[np.mod(iter, length)](x, iter, 1/self.temp)
 
+        # axuilary jump
+        if self.aux is not None:
+            q, qxy = self.aux(x, q, iter, 1/self.temp)
+
         # increment proposal cycle counter and re-randomize if at end of cycle
         if iter % length == 0: self.randomizeProposalCycle()
 
         return q, qxy
 
-    #TODO: add auxilary jump (for things like pulsar distances)
 
 
 

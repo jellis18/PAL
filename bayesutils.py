@@ -207,6 +207,29 @@ def makesubplot1d(ax, samples, weights=None, interpolate=False, smooth=True,\
         ax.plot(xedges, hist, color=color, lw=1.5, label=label)
     else:
         ax.plot(xedges, hist, color=color, lw=1.5)
+
+def getMax(samples, weights=None, range=None):
+    """ 
+    Make histogram of samples
+
+    """
+
+    if range is None:
+        hist, xedges = np.histogram(samples, bins, normed=True)
+    else:
+        hist, xedges = np.histogram(samples, bins, normed=True, range=range)
+
+    xedges = np.delete(xedges, -1) + 0.5*(xedges[1] - xedges[0])
+
+    # gaussian smoothing
+    hist = filter.gaussian_filter(hist, sigma=0.75)
+
+    # interpolation
+    f = interp.interp1d(xedges, hist, kind='cubic')
+    xedges = np.linspace(xedges.min(), xedges.max(), 10000)
+    hist = f(xedges)
+
+    return xedges[np.argmax(hist)]
         
 
 # make triangle plot of marginalized posterior distribution
