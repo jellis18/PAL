@@ -66,7 +66,8 @@ class PTSampler(object):
 
     def sample(self, p0, Niter, Tmin=1, Tmax=10, Tskip=100, \
                isave=1000, covUpdate=5000, SCAMweight=20, \
-               AMweight=20, DEweight=20, burn=5000):
+               AMweight=20, DEweight=20, burn=5000, \
+               maxIter=None):
 
         """
         Function to carry out PTMCMC sampling.
@@ -82,13 +83,18 @@ class PTSampler(object):
         @param AMweight: Weight of AM jumps in overall jump cycle (default=20)
         @param DEweight: Weight of DE jumps in overall jump cycle (default=20)
         @param burn: Burn in time (DE jumps added after this iteration) (default=5000)
+        @param maxIter: Maximum number of iterations for high temperature chains (default=2*Niter)
 
         """
 
+        # get maximum number of iterations
+        if maxIter is None:
+            maxIter = 2*Niter
+
         # set up arrays to store lnprob, lnlike and chain
-        self._lnprob = np.zeros(Niter)
-        self._lnlike = np.zeros(Niter)
-        self._chain = np.zeros((Niter, self.ndim))
+        self._lnprob = np.zeros(maxIter)
+        self._lnlike = np.zeros(maxIter)
+        self._chain = np.zeros((maxIter, self.ndim))
         self.naccepted = 0
         self.swapProposed = 0
         self.nswap_accepted = 0
@@ -143,6 +149,7 @@ class PTSampler(object):
         runComplete = False
         while runComplete == False:
             iter += 1
+            accepted = 0
 
             # update covariance matrix
             if (iter-1) % covUpdate == 0 and (iter-1) != 0:
@@ -181,7 +188,7 @@ class PTSampler(object):
 
                 # update acceptance counter
                 self.naccepted += 1
-
+                accepted = 1
 
             # put results into arrays
             self._chain[iter,:] = p0
@@ -268,9 +275,13 @@ class PTSampler(object):
                 self._writeToFile(fname, iter, isave)
                 if self.MPIrank == 0 and self.verbose:
                     sys.stdout.write('\r')
-                    sys.stdout.write('Finished %2.2f percent in %f s'%(iter/Niter*100, \
-                                                    time.time() - tstart))
+                    sys.stdout.write('Finished %2.2f percent in %f s Acceptance rate = %g'\
+                                     %(iter/Niter*100, time.time() - tstart, \
+                                       self.naccepted/iter))
                     sys.stdout.flush()
+
+                    # write output covariance matrix
+                    np.save(self.outDir + '/cov.npy', self.cov)
 
             # stop
             if self.MPIrank == 0 and iter >= Niter-1:
@@ -332,7 +343,6 @@ class PTSampler(object):
         self._chainfile.close()
 
 
-
     # function to update covariance matrix for jump proposals
     def _updateRecursive(self, iter, mem):
 
@@ -344,23 +354,23 @@ class PTSampler(object):
 
         """
 
-        iter -= mem
+        it = iter - mem
 
-        if iter == 0:
+        if it == 0:
             self.M2 = np.zeros((self.ndim, self.ndim))
             self.mu = np.zeros(self.ndim)
 
         for ii in range(mem):
             diff = np.zeros(self.ndim)
-            iter += 1
+            it += 1
             for jj in range(self.ndim):
                 
-                diff[jj] = self._chain[iter+ii,jj] - self.mu[jj]
-                self.mu[jj] += diff[jj]/iter
+                diff[jj] = self._chain[iter-mem+ii,jj] - self.mu[jj]
+                self.mu[jj] += diff[jj]/it
 
-            self.M2 += np.outer(diff, (self._chain[iter+ii,:]-self.mu))
+            self.M2 += np.outer(diff, (self._chain[iter-mem+ii,:]-self.mu))
 
-        self.cov = self.M2/(iter-1)  
+        self.cov = self.M2/(it-1)  
 
         # do svd
         self.U, self.S, v = np.linalg.svd(self.cov)
@@ -608,6 +618,7 @@ class PTSampler(object):
 
         return q, qxy
 
+    # TODO: jump statistics
 
 
 

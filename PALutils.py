@@ -379,17 +379,17 @@ def createTimeLags(toa1, toa2, round=True):
         
     return tm
 
-def exploderMatrix(toas):
+def exploderMatrix(toas, dt=1200):
     """
     Compute exploder matrix for daily averaging
 
     @param toas: array of toas
+    @param dt: time offset (seconds)
 
     @return: exploder matrix and daily averaged toas
 
     """
 
-    spd = 3600.0 * 24.0     # Seconds per day
 
     processed = np.array([0]*len(toas), dtype=np.bool)  # No toas processed yet
     U = np.zeros((len(toas), 0))
@@ -398,8 +398,8 @@ def exploderMatrix(toas):
     while not np.all(processed):
         npindex = np.where(processed == False)[0]
         ind = npindex[0]
-        satmin = toas[ind] - spd
-        satmax = toas[ind] + spd
+        satmin = toas[ind] - dt
+        satmax = toas[ind] + dt
 
         dailyind = np.where(np.logical_and(toas > satmin, toas < satmax))[0]
 
