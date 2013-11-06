@@ -31,10 +31,11 @@ class PTSampler(object):
 
     """
 
-    def __init__(self, ndim, logl, logp, cov, outDir='./chains', verbose=True):
+    def __init__(self, ndim, logl, logp, cov, comm=MPI.COMM_WORLD, \
+                 outDir='./chains', verbose=True):
 
         # MPI initialization
-        self.comm = MPI.COMM_WORLD
+        self.comm = comm
         self.MPIrank = self.comm.Get_rank()
         self.nchain = self.comm.Get_size()
 
@@ -412,12 +413,8 @@ class PTSampler(object):
         # adjust step size
         prob = np.random.rand()
 
-        # very small jump
-        if prob > 0.9:
-            scale = 0.01
-            
         # small jump
-        elif prob > 0.7:
+        if prob > 0.9:
             scale = 0.2
 
         # large jump
@@ -467,12 +464,8 @@ class PTSampler(object):
         # adjust step size
         prob = np.random.rand()
 
-        # very small jump
-        if prob > 0.9:
-            scale = 0.01
-            
         # small jump
-        elif prob > 0.7:
+        if prob > 0.9:
             scale = 0.2
 
         # large jump
@@ -487,7 +480,7 @@ class PTSampler(object):
         else:
             scale = 1.0
 
-        cd = 2.4/np.sqrt(2*self.ndim) * scale
+        cd = 2.4/np.sqrt(2*self.ndim) * np.sqrt(scale)
         q = np.random.multivariate_normal(x, cd**2*self.cov)
 
         return q, qxy
@@ -611,7 +604,8 @@ class PTSampler(object):
 
         # axuilary jump
         if self.aux is not None:
-            q, qxy = self.aux(x, q, iter, 1/self.temp)
+            q, qxy_aux = self.aux(x, q, iter, 1/self.temp)
+            qxy += qxy_aux
 
         # increment proposal cycle counter and re-randomize if at end of cycle
         if iter % length == 0: self.randomizeProposalCycle()

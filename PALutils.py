@@ -356,6 +356,23 @@ def createGmatrix(designmatrix):
 
     return u[:,-(npts-nfit):]
 
+def createQSDdesignmatrix(toas):
+    """
+    Return designmatrix for QSD model
+
+    @param toas: vector of TOAs in seconds
+
+    @return: M design matrix for QSD
+
+   """
+
+    designmatrix = np.zeros((len(toas), 3))
+
+    for ii in range(3):
+        designmatrix[:,ii] = toas**(ii)
+
+    return designmatrix
+
 
 def createTimeLags(toa1, toa2, round=True):
     """

@@ -68,7 +68,7 @@ if len(parFile) != npsr:
     raise IOError, "Different number of pulsars in par directory and hdf5 file!"
 
 # run tempo2
-pp = [t2.tempopulsar(parFile[ii],timFile[ii]) for ii in range(npsr)]
+pp = [t2.tempopulsar(parFile[ii], timFile[ii]) for ii in range(npsr)]
 
 # finally check to make sure that they are the same pulsars
 for ct,p in enumerate(psr):
@@ -88,6 +88,44 @@ for ct,p in enumerate(pp):
                 index.append(ii)
 
 pp = [pp[ii] for ii in index]
+
+M = [PALutils.createQSDdesignmatrix(p.toas) for p in psr]
+
+RQ = [PALutils.createRmatrix(M[ct], p.err) for ct, p in enumerate(psr)]
+
+# construct noise matrix for new noise realizations
+print 'Constructing noise cholesky decompositions'
+L = []
+for ct, p in enumerate(psr):
+
+    Amp = p.Amp
+    gam = p.gam
+    efac = p.efac
+    equad = p.equad
+    cequad = p.cequad
+        
+    avetoas, U = PALutils.exploderMatrix(p.toas)
+    Tspan = p.toas.max()-p.toas.min()
+    F, f = PALutils.createfourierdesignmatrix(p.toas, 10, freq=True, Tspan=Tspan)
+            
+    f1yr = 1/3.16e7
+    rho = (Amp**2/12/np.pi**2 * f1yr**(gam-3) * f**(-gam)/Tspan)
+    
+    tmp = np.zeros(20)
+    tmp[0::2] = rho
+    tmp[1::2] = rho
+    
+    phi = np.diag(tmp)
+    
+    white = PALutils.createWhiteNoiseCovarianceMatrix(p.err, efac**2, equad)
+    
+    cequad_mat = cequad**2 * np.dot(U,U.T)
+    
+    red = np.dot(F, np.dot(phi, F.T))
+    
+    cov = white + red + cequad_mat
+
+    L.append(np.linalg.cholesky(cov))
 
 #############################################################################################
 
@@ -113,16 +151,14 @@ def upperLimitFunc(h):
         gwtheta = np.arccos(np.random.uniform(-1, 1))
         gwphi = np.random.uniform(0, 2*np.pi)
         gwphase = np.random.uniform(0, 2*np.pi)
-        gwinc = np.arccos(np.random.uniform(0, 1))
+        gwinc = np.arccos(np.random.uniform(-1, 1))
         gwpsi = np.random.uniform(-np.pi/4, np.pi/4)
 
         # check to make sure source has not coalesced during observation time
-        coal = True
-        while coal:
-            gwmc = 10**np.random.uniform(7, 10)
-            tcoal = 2e6 * (gwmc/1e8)**(-5/3) * (freq/1e-8)**(-8/3)
-            if tcoal > Tmaxyr:
-                coal = False
+        gwmc = 10**np.random.uniform(7, 10)
+        tcoal = 2e6 * (gwmc/1e8)**(-5/3) * (freq/1e-8)**(-8/3)
+        if tcoal < Tmaxyr:
+            gwmc = 1e5
 
         # determine distance in order to keep strain fixed
         gwdist = 4 * np.sqrt(2/5) * (gwmc*4.9e-6)**(5/3) * (np.pi*freq)**(2/3) / h
@@ -135,14 +171,19 @@ def upperLimitFunc(h):
             inducedRes = PALutils.createResiduals(p, gwtheta, gwphi, gwmc, gwdist, \
                             freq, gwphase, gwpsi, gwinc)
  
-            # add to site arrival times of pulsar
-            pp[ct].stoas[:] += np.longdouble(inducedRes/86400)
+            # create simulated data set
+            noise = np.dot(L[ct], np.random.randn(L[ct].shape[0]))
+            pp[ct].stoas[:] -= pp[ct].residuals()/86400
+            pp[ct].stoas[:] += np.longdouble(np.dot(RQ[ct], noise)/86400)
+            pp[ct].stoas[:] += np.longdouble(np.dot(RQ[ct], inducedRes)/86400)
 
             # refit
             pp[ct].fit(iters=3)
 
             # replace residuals in pulsar object
             p.res = pp[ct].residuals()
+
+            print p.name, p.rms()*1e6
 
         # compute f-statistic
         fpstat = PALLikelihoods.fpStat(psr, freq)
@@ -161,18 +202,26 @@ def upperLimitFunc(h):
 
 #############################################################################################
 
-# compute reference f-statistic
-fstat_ref = PALLikelihoods.fpStat(psr, args.freq)
-
-# now compute bound with scalar minimization function using Brent's method
-hhigh = 5e-14
+hhigh = 1e-13
 hlow = 1e-15
 xtol = 1e-16
-freq = args.freq
 nreal = args.nreal
-h_up = brentq(upperLimitFunc, hlow, hhigh, xtol=xtol)
-#fbounded = minimize_scalar(upperLimitFunc, args=(fstat_ref, args.freq, args.nreal), \
-#                           bounds=(hlow, hmid, hhigh), method='Brent')
+freq = args.freq
 
+# get reference f-statistic
+fstat_ref = PALLikelihoods.fpStat(psr, freq)
 
-    
+# perfrom upper limit calculation
+inRange = False
+while inRange == False:
+
+    try:    # try brentq method
+        h_up = brentq(upperLimitFunc, hlow, hhigh, xtol=xtol)
+        inRange = True
+    except ValueError:      # bounds not in range
+        if hhigh < 1e-11:   # don't go too high
+            hhigh *= 2      # double high strain
+        else:
+            h_up = hhigh    # if too high, just set to upper bound
+            inRange = True
+

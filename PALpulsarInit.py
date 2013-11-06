@@ -458,7 +458,6 @@ class pulsar(object):
             ## noise parameters ##
 
             elif key == "Amp":
-
                 self.Amp = pulsargroup[key].value 
             
             # red noise spectral
@@ -472,6 +471,9 @@ class pulsar(object):
             # equad
             elif key == "equad":
                 self.equad = pulsargroup[key].value 
+            
+            elif key == "cequad":
+                self.cequad = pulsargroup[key].value 
             
             # fH
             elif key == "fH":

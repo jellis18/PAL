@@ -61,6 +61,38 @@ res = [p.res for p in psr]
 # get list of R matrices
 R = [PALutils.createRmatrix(p.dmatrix, p.err) for p in psr]
 
+L = []
+for ct, p in enumerate(psr):
+
+    Amp = p.Amp
+    gam = p.gam
+    efac = p.efac
+    equad = p.equad
+    cequad = p.cequad
+        
+    avetoas, U = PALutils.exploderMatrix(p.toas)
+    Tspan = p.toas.max()-p.toas.min()
+    F, f = PALutils.createfourierdesignmatrix(p.toas, 10, freq=True, Tspan=Tspan)
+            
+    f1yr = 1/3.16e7
+    rho = (Amp**2/12/np.pi**2 * f1yr**(gam-3) * f**(-gam)/Tspan)
+    
+    tmp = np.zeros(20)
+    tmp[0::2] = rho
+    tmp[1::2] = rho
+    
+    phi = np.diag(tmp)
+    
+    white = PALutils.createWhiteNoiseCovarianceMatrix(p.err, efac**2, equad)
+    
+    cequad_mat = cequad**2 * np.dot(U,U.T)
+    
+    red = np.dot(F, np.dot(phi, F.T))
+    
+    cov = white + red + cequad_mat
+
+    L.append(np.linalg.cholesky(cov))
+
 
 #############################################################################################
 
@@ -85,8 +117,9 @@ def upperLimitFunc(h, fstat_ref, freq, nreal):
         gwtheta = np.arccos(np.random.uniform(-1, 1))
         gwphi = np.random.uniform(0, 2*np.pi)
         gwphase = np.random.uniform(0, 2*np.pi)
-        gwinc = np.arccos(np.random.uniform(0, 1))
-        gwpsi = np.random.uniform(-np.pi/4, np.pi/4)
+        gwinc = np.arccos(np.random.uniform(-1, 1))
+        #gwpsi = np.random.uniform(-np.pi/4, np.pi/4)
+        gwpsi = np.random.uniform(0, 2*np.pi)
 
         # check to make sure source has not coalesced during observation time
         coal = True
@@ -108,7 +141,10 @@ def upperLimitFunc(h, fstat_ref, freq, nreal):
                             freq, gwphase, gwpsi, gwinc, evolve=True)
  
             # replace residuals in pulsar object
-            p.res = res[ct] + np.dot(R[ct], inducedRes)
+            noise = np.dot(L[ct], np.random.randn(L[ct].shape[0]))
+            #p.res = (res[ct] + np.dot(R[ct], noise))/2 + np.dot(R[ct], inducedRes)
+            #p.res = res[ct] + np.dot(R[ct], inducedRes)
+            p.res = np.dot(R[ct], noise+inducedRes)
 
         # compute f-statistic
         fpstat = PALLikelihoods.fpStat(psr, freq)
