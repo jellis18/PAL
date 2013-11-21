@@ -208,7 +208,7 @@ def makesubplot1d(ax, samples, weights=None, interpolate=False, smooth=True,\
     else:
         ax.plot(xedges, hist, color=color, lw=1.5)
 
-def getMax(samples, weights=None, range=None):
+def getMax(samples, weights=None, range=None, bins=50):
     """ 
     Make histogram of samples
 
@@ -281,6 +281,7 @@ def triplot(chain, color=True, weights=None, interpolate=False, smooth=True, \
                     makesubplot1d(axarr[ii][ii], chain[:,parameters[ii]], \
                                   weights=weights, interpolate=interpolate, \
                                   smooth=smooth)
+                    axarr[ii][jj].set_ylim(ymin=0)
 
                     if inj is not None:
                         axarr[ii][ii].axvline(inj[ii], lw=2, color='k')
@@ -443,7 +444,7 @@ def plotSkyMap(raSample, decSample, nside=64, contours=None, colorbar=True, \
 
 
 
-def upperlimitplot2d(x, y, sigma=2, ymin=None, ymax=None, bins=40, log=False, \
+def upperlimitplot2d(x, y, sigma=0.95, ymin=None, ymax=None, bins=40, log=False, \
                      savename=None, labels=None, hold=False, **kwargs):
 
     """
@@ -485,7 +486,7 @@ def upperlimitplot2d(x, y, sigma=2, ymin=None, ymax=None, bins=40, log=False, \
         # Obtain the 1-sided x-sigma upper limit
         if len(indices) > 0:
             bin_index.append(i)
-            a, sigma1 = confinterval(x[indices], sigmalevel=sigma, onesided=True)
+            a, sigma1 = confinterval(x[indices], sigma=sigma, onesided=True)
             upper.append(sigma1)
 
     # make bin_indes and upper into arrays

@@ -225,12 +225,20 @@ if args.noise:
             gam = pfile['Data']['Pulsars'][p.name]['gam'].value
             efac = pfile['Data']['Pulsars'][p.name]['efac'].value
             equad = pfile['Data']['Pulsars'][p.name]['equad'].value
+            try:
+                cequad = pfile['Data']['Pulsars'][p.name]['cequad'].value
+                avetoas, U = PALutils.exploderMatrix(p.toas)
+                cequad_mat = cequad**2 * np.dot(U,U.T)
+            except KeyError:
+                cequad = None
+                cequad_mat = 0
+
             tm = PALutils.createTimeLags(p.toas, p.toas)
 
             red = PALutils.createRedNoiseCovarianceMatrix(tm, Amp, gam, fH=fH)
-            white = PALutils.createWhiteNoiseCovarianceMatrix(p.err, efac, equad)
+            white = PALutils.createWhiteNoiseCovarianceMatrix(p.err, efac**2, equad)
 
-            cov = red + white
+            cov = red + white + cequad_mat
 
             # cholesky decomp
             L = np.linalg.cholesky(cov)

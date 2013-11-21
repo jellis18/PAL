@@ -25,6 +25,15 @@ parser.add_argument('--nfreqs', dest='nfreqs', action='store', type=int, default
                    help='Number of frequencies to compute upper limits  (default = 40)')
 parser.add_argument('--outdir', dest='outdir', action='store', type=str, default='./',
                    help='Full path to output directory(default = ./)')
+parser.add_argument('--theta', dest='theta', action='store', type=float, default=None,
+                   help='Theta at which to compute upper limit (default = None)')
+parser.add_argument('--phi', dest='phi', action='store', type=float, default=None,
+                   help='Phi at which to compute upper limit (default = None)')
+parser.add_argument('--detect', dest='detect', action='store_true', default=False,
+                   help='Run sensitivity instead of an upper limit (default = False)')
+parser.add_argument('--best', dest='best', action='store', type=int, default=0,
+                   help='Only use best pulsars based on weighted rms (default = 0, use all)')
+
 
 # parse arguments
 args = parser.parse_args()
@@ -39,6 +48,16 @@ pulsargroup = pfile['Data']['Pulsars']
 
 # fill in pulsar class
 psr = [PALpulsarInit.pulsar(pulsargroup[key],addNoise=True) for key in pulsargroup]
+
+if args.best != 0:
+    print 'Using best {0} pulsars'.format(args.best)
+    rms = np.array([p.rms() for p in psr])
+    ind = np.argsort(rms)
+
+    psr = [psr[ii] for ii in ind[0:args.best]]
+
+    for p in psr:
+        print 'Pulsar {0} has {1} ns weighted rms'.format(p.name,p.rms()*1e9)
 
 # number of pulsars
 npsr = len(psr)
@@ -98,7 +117,7 @@ for ct, p in enumerate(psr):
 
 #### DEFINE UPPER LIMIT FUNCTION #####
 
-def upperLimitFunc(h, fstat_ref, freq, nreal):
+def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False):
     """
     Compute the value of the fstat for a range of parameters, with fixed
     amplitude over many realizations.
@@ -134,6 +153,13 @@ def upperLimitFunc(h, fstat_ref, freq, nreal):
 
         # convert back to Mpc
         gwdist /= 1.0267e14
+        
+        # check for fixed sky location
+        if theta is not None:
+            gwtheta = theta
+        if phi is not None:
+            gwphi = phi
+
 
         # create residuals 
         for ct,p in enumerate(psr):
@@ -150,8 +176,12 @@ def upperLimitFunc(h, fstat_ref, freq, nreal):
         fpstat = PALLikelihoods.fpStat(psr, freq)
         
         # check to see if larger than in real data
-        if fpstat > fstat_ref:
-            count += 1
+        if detect:
+            if PALutils.ptSum(npsr, fpstat) < 1e-4:
+                count += 1
+        else:
+            if fpstat > fstat_ref:
+                count += 1
 
     # now get detection probability
     detProb = count/nreal
@@ -182,7 +212,7 @@ if freq is not None:
 
         try:    # try brentq method
             h_up = brentq(upperLimitFunc, hlow, hhigh, xtol=xtol, \
-                  args=(fstat_ref, freq, nreal))
+                  args=(fstat_ref, freq, nreal, args.theta, args.phi, args.detect))
             inRange = True
         except ValueError:      # bounds not in range
             if hhigh < 1e-11:   # don't go too high
@@ -217,7 +247,7 @@ elif freq is None:
         
             try:
                 h_up[ii] = brentq(upperLimitFunc, hlow, hhigh, xtol=xtol, \
-                      args=(fstat_ref[ii], freqs[ii], nreal))
+                      args=(fstat_ref[ii], freqs[ii], nreal, args.theta, args.phi, args.detect))
                 inRange = True
             except ValueError:
                 if hhigh < 1e-11:
@@ -240,6 +270,13 @@ if args.freq is None:   # save entire list
         fout.write('%g %g\n'%(freqs[ii], h_up[ii]))
 
 else:   # only one frequency
-    fname = 'upper_{0}_{1}.txt'.format(args.freq, args.nreal)
+    fname = 'upper_{0}_{1}_{2}'.format(args.freq, args.nreal, npsr)
+    if args.theta is not None:
+        fname += '_{0}'.format(args.theta)
+    if args.phi is not None:
+        fname += '_{0}'.format(args.phi)
+    fname += '.txt'
+   
     fout = open(args.outdir + fname, 'w')
     fout.write('%g %g\n'%(args.freq, h_up))
+

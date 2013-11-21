@@ -182,7 +182,7 @@ def createResidualsFast(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pd
 
     # unit vectors to GW source
     m = [-singwphi, cosgwphi, 0.0]
-    n = [-cosgwtheta*cosgwphi, -cosgwtheta*cosgwphi, singwtheta]
+    n = [-cosgwtheta*cosgwphi, -cosgwtheta*singwphi, singwtheta]
     omhat = [-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta]
 
     # various factors invloving GW parameters

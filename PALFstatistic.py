@@ -90,8 +90,9 @@ for p in psr:
 # set up frequencies to search with low frequency 1/2*Tmax and upper frequency 5e-7
 
 Tmax = np.array([p.toas.max() - p.toas.min() for p in psr]).max()
-flow = 0.5/Tmax
-fhigh = args.fhigh
+flow = 1/Tmax
+fhigh = 52/3 * Tmax/3.16e7/2/Tmax
+#fhigh = args.fhigh
 
 # set up frequency vector
 if args.logsample:
