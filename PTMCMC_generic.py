@@ -65,16 +65,17 @@ class PTSampler(object):
         self.aux = None
         
 
-    def sample(self, p0, Niter, Tmin=1, Tmax=10, Tskip=100, \
+    def sample(self, p0, Niter, ladder=None, Tmin=1, Tmax=10, Tskip=100, \
                isave=1000, covUpdate=5000, SCAMweight=20, \
-               AMweight=20, DEweight=20, burn=5000, \
-               maxIter=None):
+               AMweight=20, DEweight=20, burn=10000, \
+               maxIter=None, thin=10):
 
         """
         Function to carry out PTMCMC sampling.
 
         @param p0: Initial parameter vector
         @param Niter: Number of iterations to use for T = 1 chain
+        @param ladder: User defined temperature ladder
         @param Tmin: Minimum temperature in ladder (default=1) 
         @param Tmax: Maximum temperature in ladder (default=10) 
         @param Tskip: Number of steps between proposed temperature swaps (default=100)
@@ -85,6 +86,7 @@ class PTSampler(object):
         @param DEweight: Weight of DE jumps in overall jump cycle (default=20)
         @param burn: Burn in time (DE jumps added after this iteration) (default=5000)
         @param maxIter: Maximum number of iterations for high temperature chains (default=2*Niter)
+        @param thin: Save every thin MCMC samples
 
         """
 
@@ -93,14 +95,21 @@ class PTSampler(object):
             maxIter = 2*Niter
 
         # set up arrays to store lnprob, lnlike and chain
-        self._lnprob = np.zeros(maxIter)
-        self._lnlike = np.zeros(maxIter)
-        self._chain = np.zeros((maxIter, self.ndim))
+        N = int(maxIter/thin)
+        self._lnprob = np.zeros(N)
+        self._lnlike = np.zeros(N)
+        self._chain = np.zeros((N, self.ndim))
         self.naccepted = 0
         self.swapProposed = 0
         self.nswap_accepted = 0
 
-        # setup default jump proposal distributions
+        # set up covariance matrix and DE buffers
+        # TODO: better way of allocating this to save memory
+        if self.MPIrank == 0:
+            self._AMbuffer = np.zeros((Niter, self.ndim))
+            self._DEbuffer = np.zeros((burn, self.ndim))
+
+        ### setup default jump proposal distributions ###
 
         # add SCAM
         self.addProposalToCycle(self.covarianceJumpProposalSCAM, SCAMweight)
@@ -111,8 +120,9 @@ class PTSampler(object):
         # randomize cycle
         self.randomizeProposalCycle()
 
-        # setup temperature ladder
-        ladder = self._temperatureLadder(Tmin)
+        # setup default temperature ladder
+        if ladder is None:
+            ladder = self.temperatureLadder(Tmin)
 
         # temperature for current chain
         self.temp = ladder[self.MPIrank]
@@ -148,23 +158,56 @@ class PTSampler(object):
         iter = 0
         tstart = time.time()
         runComplete = False
+        getCovariance = 0
+        getDEbuf = 0
         while runComplete == False:
             iter += 1
             accepted = 0
 
             # update covariance matrix
-            if (iter-1) % covUpdate == 0 and (iter-1) != 0:
+            if (iter-1) % covUpdate == 0 and (iter-1) != 0 and self.MPIrank == 0:
                 self._updateRecursive(iter-1, covUpdate)
 
-            # jump proposal
-            y, qxy = self._jump(p0, iter)
+                # broadcast to other chains
+                [self.comm.send(self.cov, dest=rank+1, tag=111) for rank in range(self.nchain-1)]
+            
+            # check for sent covariance matrix from T = 0 chain
+            getCovariance = self.comm.Iprobe(source=0, tag=111)
+            time.sleep(0.000001) 
 
-            # after burn in, add DE jumps
-            if iter == burn:
+            if getCovariance and self.MPIrank > 0:
+                self.cov = self.comm.recv(source=0, tag=111)
+                getCovariance = 0
+
+            # update DE buffer
+            if (iter-1) % burn == 0 and (iter-1) != 0 and self.MPIrank == 0:
+                self._updateDEbuffer(iter-1, burn)
+
+                # broadcast to other chains
+                [self.comm.send(self._DEbuffer, dest=rank+1, tag=222) for rank in range(self.nchain-1)]
+            
+            # check for sent DE buffer from T = 0 chain
+            getDEbuf = self.comm.Iprobe(source=0, tag=222)
+            time.sleep(0.000001) 
+
+            if getDEbuf and self.MPIrank > 0:
+                self._DEbuffer = self.comm.recv(source=0, tag=222)
                 self.addProposalToCycle(self.DEJump, DEweight)
                 
                 # randomize cycle
                 self.randomizeProposalCycle()
+                getDEbuf = 0
+
+            # after burn in, add DE jumps
+            if (iter-1) == burn and self.MPIrank == 0:
+                self.addProposalToCycle(self.DEJump, DEweight)
+                
+                # randomize cycle
+                self.randomizeProposalCycle()
+            
+            
+            # jump proposal
+            y, qxy = self._jump(p0, iter)
 
 
             # compute prior and likelihood
@@ -190,11 +233,6 @@ class PTSampler(object):
                 # update acceptance counter
                 self.naccepted += 1
                 accepted = 1
-
-            # put results into arrays
-            self._chain[iter,:] = p0
-            self._lnlike[iter] = lnlike0
-            self._lnprob[iter] = lnprob0
 
 
             ##################### TEMPERATURE SWAP ###############################
@@ -266,14 +304,20 @@ class PTSampler(object):
 
         ##################################################################
 
+            # update buffer
+            if self.MPIrank == 0:
+                self._AMbuffer[iter,:] = p0
+            
             # put results into arrays
-            self._chain[iter,:] = p0
-            self._lnlike[iter] = lnlike0
-            self._lnprob[iter] = lnprob0
+            if iter % thin == 0:
+                ind = int(iter/thin)
+                self._chain[ind,:] = p0
+                self._lnlike[ind] = lnlike0
+                self._lnprob[ind] = lnprob0
 
             # write to file
             if iter % isave == 0:
-                self._writeToFile(fname, iter, isave)
+                self._writeToFile(fname, iter, isave, thin)
                 if self.MPIrank == 0 and self.verbose:
                     sys.stdout.write('\r')
                     sys.stdout.write('Finished %2.2f percent in %f s Acceptance rate = %g'\
@@ -300,7 +344,7 @@ class PTSampler(object):
 
 
 
-    def _temperatureLadder(self, Tmin):
+    def temperatureLadder(self, Tmin, Tmax=None, tstep=None):
 
         """
         Method to compute temperature ladder. At the moment this uses
@@ -312,7 +356,8 @@ class PTSampler(object):
         #TODO: make options to do other temperature ladders
 
         if self.nchain > 1:
-            tstep = 1 + np.sqrt(2/self.ndim)
+            if tstep is None:
+                tstep = 1 + np.sqrt(2/self.ndim)
             ladder = np.zeros(self.nchain)
             for ii in range(self.nchain): ladder[ii] = Tmin*tstep**ii
         else:
@@ -321,7 +366,7 @@ class PTSampler(object):
         return ladder
 
 
-    def _writeToFile(self, fname, iter, isave):
+    def _writeToFile(self, fname, iter, isave, thin):
 
         """
         Function to write chain file. File has 3+ndim columns,
@@ -331,14 +376,16 @@ class PTSampler(object):
         @param fname: chainfile name
         @param iter: Iteration of sampler
         @param isave: Number of iterations between saves
+        @param thin: Fraction at which to thin chain
 
         """
 
         self._chainfile = open(fname, 'a+')
-        for jj in range((iter-isave), iter, 10):
-            self._chainfile.write('%e\t %e\t %e\t'%(self._lnprob[jj], self._lnlike[jj],\
+        for jj in range((iter-isave), iter, thin):
+            ind = int(jj/thin)
+            self._chainfile.write('%e\t %e\t %e\t'%(self._lnprob[ind], self._lnlike[ind],\
                                                   self.naccepted/iter))
-            self._chainfile.write('\t'.join([str(self._chain[jj,kk]) \
+            self._chainfile.write('\t'.join([str(self._chain[ind,kk]) \
                                             for kk in range(self.ndim)]))
             self._chainfile.write('\n')
         self._chainfile.close()
@@ -366,15 +413,29 @@ class PTSampler(object):
             it += 1
             for jj in range(self.ndim):
                 
-                diff[jj] = self._chain[iter-mem+ii,jj] - self.mu[jj]
+                diff[jj] = self._AMbuffer[iter-mem+ii,jj] - self.mu[jj]
                 self.mu[jj] += diff[jj]/it
 
-            self.M2 += np.outer(diff, (self._chain[iter-mem+ii,:]-self.mu))
+            self.M2 += np.outer(diff, (self._AMbuffer[iter-mem+ii,:]-self.mu))
 
         self.cov = self.M2/(it-1)  
 
         # do svd
         self.U, self.S, v = np.linalg.svd(self.cov)
+
+    # update DE buffer samples
+    def _updateDEbuffer(self, iter, burn):
+        """
+        Update Differential Evolution with last burn
+        values in the total chain
+
+        @param iter: Iteration of sampler
+        @param burn: Total number of samples in DE buffer
+
+        """
+
+        self._DEbuffer = self._AMbuffer[iter-burn:iter]
+
         
     # SCAM jump
     def covarianceJumpProposalSCAM(self, x, iter, beta):
@@ -429,6 +490,10 @@ class PTSampler(object):
         else:
             scale = 1.0
 
+        # adjust scale based on temperature
+        if self.temp <= 100:
+            scale *= np.sqrt(self.temp)
+
         # get parmeters in new diagonalized basis
         y = np.dot(self.U.T, x)
 
@@ -480,6 +545,10 @@ class PTSampler(object):
         else:
             scale = 1.0
 
+        # adjust scale based on temperature
+        if self.temp <= 100:
+            scale *= np.sqrt(self.temp)
+
         cd = 2.4/np.sqrt(2*self.ndim) * np.sqrt(scale)
         q = np.random.multivariate_normal(x, cd**2*self.cov)
 
@@ -506,12 +575,14 @@ class PTSampler(object):
         q = x.copy()
         qxy = 0
 
+        bufsize = np.alen(self._DEbuffer)
+
         # draw a random integer from 0 - iter
-        mm = np.random.randint(0, iter)
-        nn = np.random.randint(0, iter)
+        mm = np.random.randint(0, bufsize)
+        nn = np.random.randint(0, bufsize)
 
         # make sure mm and nn are not the same iteration
-        while mm == nn: nn = np.random.randint(0, iter)
+        while mm == nn: nn = np.random.randint(0, bufsize)
 
         # get jump scale size
         prob = np.random.rand()
@@ -519,15 +590,14 @@ class PTSampler(object):
         # mode jump
         if prob > 0.5:
             scale = 1.0
-
+            
         else:
             scale = np.random.rand() * 2.4/np.sqrt(2*self.ndim) * np.sqrt(1/beta)
-
 
         for ii in range(self.ndim):
             
             # jump size
-            sigma = self._chain[mm, ii] - self._chain[nn, ii]
+            sigma = self._DEbuffer[mm, ii] - self._DEbuffer[nn, ii]
 
             # jump
             q[ii] += scale * sigma

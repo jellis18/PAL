@@ -172,6 +172,7 @@ def createResidualsFast(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pd
 
     # define initial orbital frequency 
     w0 = np.pi * fgw
+    phase0 /= 2 # orbital phase
     w053 = w0**(-5/3)
 
     # define variable for later use
@@ -204,14 +205,13 @@ def createResidualsFast(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pd
     
         # get values from pulsar object
         toas = p.toas
-        pd = pdist[ct]
         if pdist is None and pphase is None:
             pd = p.dist
-        
-        # TODO: fix this to just use phase completely
         elif pdist is None and pphase is not None:
             pd = pphase[ct]/(2*np.pi*fgw*(1-cosMu)) / 1.0267e11
-       
+        else:
+            pd = pdist[ct]
+        
 
         # convert units
         pd *= 1.0267e11   # convert from kpc to seconds

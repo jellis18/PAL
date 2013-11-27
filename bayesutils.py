@@ -292,7 +292,8 @@ def triplot(chain, color=True, weights=None, interpolate=False, smooth=True, \
                                   smooth=smooth)
 
                     if inj is not None:
-                        axarr[jj][ii].plot(inj[ii], inj[jj], 'x', color='k', markersize=12, mew=2, mec='k')
+                        axarr[jj][ii].plot(inj[ii], inj[jj], 'x', color='k', markersize=12, \
+                                           mew=2, mec='k')
 
                 axarr[jj][ii].xaxis.set_major_locator(xmajorLocator)
                 axarr[jj][ii].yaxis.set_major_locator(ymajorLocator)

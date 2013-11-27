@@ -12,7 +12,7 @@ import h5py as h5
 import argparse
 import os, glob
 
-parser = argparse.ArgumentParser(description = 'Simulate Fake Data (Under Construction)')
+parser = argparse.ArgumentParser(description = 'F-statistic Upper Limits')
 
 # options
 parser.add_argument('--h5File', dest='h5file', action='store', type=str, required=True,
@@ -33,6 +33,8 @@ parser.add_argument('--detect', dest='detect', action='store_true', default=Fals
                    help='Run sensitivity instead of an upper limit (default = False)')
 parser.add_argument('--best', dest='best', action='store', type=int, default=0,
                    help='Only use best pulsars based on weighted rms (default = 0, use all)')
+parser.add_argument('--dist', dest='dist', action='store', type=float, default=None,
+                   help='Luminosity distance at which to compute upper limit (default = None)')
 
 
 # parse arguments
@@ -87,7 +89,10 @@ for ct, p in enumerate(psr):
     gam = p.gam
     efac = p.efac
     equad = p.equad
-    cequad = p.cequad
+    try:
+        cequad = p.cequad
+    except AttributeError:
+        cequad = 0
         
     avetoas, U = PALutils.exploderMatrix(p.toas)
     Tspan = p.toas.max()-p.toas.min()
@@ -117,7 +122,8 @@ for ct, p in enumerate(psr):
 
 #### DEFINE UPPER LIMIT FUNCTION #####
 
-def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False):
+def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False, \
+                  dist=None):
     """
     Compute the value of the fstat for a range of parameters, with fixed
     amplitude over many realizations.
@@ -138,7 +144,7 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
         gwphase = np.random.uniform(0, 2*np.pi)
         gwinc = np.arccos(np.random.uniform(-1, 1))
         #gwpsi = np.random.uniform(-np.pi/4, np.pi/4)
-        gwpsi = np.random.uniform(0, 2*np.pi)
+        gwpsi = np.random.uniform(0, np.pi)
 
         # check to make sure source has not coalesced during observation time
         coal = True
@@ -147,6 +153,13 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
             tcoal = 2e6 * (gwmc/1e8)**(-5/3) * (freq/1e-8)**(-8/3)
             if tcoal > Tmaxyr:
                 coal = False
+        
+        #gwtheta = np.pi/2
+        #gwphi = np.pi/2
+        #gwphase = np.pi/2
+        #gwinc = np.pi/2
+        #gwpsi = np.pi/2
+        #gwmc = 1e8
 
         # determine distance in order to keep strain fixed
         gwdist = 4 * np.sqrt(2/5) * (gwmc*4.9e-6)**(5/3) * (np.pi*freq)**(2/3) / h
@@ -159,8 +172,11 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
             gwtheta = theta
         if phi is not None:
             gwphi = phi
-
-
+        if dist is not None:
+            gwdist = dist
+            gwmc = ((gwdist*1.0267e14)/4/np.sqrt(2/5)/(np.pi*freq)**(2/3)*h)**(3/5)/4.9e-6
+        
+        
         # create residuals 
         for ct,p in enumerate(psr):
             inducedRes = PALutils.createResiduals(p, gwtheta, gwphi, gwmc, gwdist, \
@@ -168,9 +184,8 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
  
             # replace residuals in pulsar object
             noise = np.dot(L[ct], np.random.randn(L[ct].shape[0]))
-            #p.res = (res[ct] + np.dot(R[ct], noise))/2 + np.dot(R[ct], inducedRes)
-            #p.res = res[ct] + np.dot(R[ct], inducedRes)
             p.res = np.dot(R[ct], noise+inducedRes)
+            #p.res = res[ct] + np.dot(R[ct], inducedRes)
 
         # compute f-statistic
         fpstat = PALLikelihoods.fpStat(psr, freq)
@@ -185,8 +200,11 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
 
     # now get detection probability
     detProb = count/nreal
-
-    print freq, h, detProb
+    
+    if args.dist:
+        print '%e %e %f\n'%(freq, gwmc, detProb)
+    else:
+        print freq, h, detProb
 
     return detProb - 0.95
 
@@ -196,7 +214,7 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
 
 # now compute bound with scalar minimization function using Brent's method
 hhigh = 1e-13
-hlow = 1e-15
+hlow = 1e-40
 xtol = 1e-16
 freq = args.freq
 nreal = args.nreal
@@ -212,7 +230,7 @@ if freq is not None:
 
         try:    # try brentq method
             h_up = brentq(upperLimitFunc, hlow, hhigh, xtol=xtol, \
-                  args=(fstat_ref, freq, nreal, args.theta, args.phi, args.detect))
+                  args=(fstat_ref, freq, nreal, args.theta, args.phi, args.detect, args.dist))
             inRange = True
         except ValueError:      # bounds not in range
             if hhigh < 1e-11:   # don't go too high
@@ -275,6 +293,9 @@ else:   # only one frequency
         fname += '_{0}'.format(args.theta)
     if args.phi is not None:
         fname += '_{0}'.format(args.phi)
+    if args.dist is not None:
+        fname += '_{0}'.format(args.dist)
+        h_up = ((args.dist*1.0267e14)/4/np.sqrt(2/5)/(np.pi*freq)**(2/3)*h_up)**(3/5)/4.9e-6
     fname += '.txt'
    
     fout = open(args.outdir + fname, 'w')
