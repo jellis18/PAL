@@ -136,6 +136,7 @@ class PTSampler(object):
         if lp == float(-np.inf):
 
             lnprob0 = -np.inf
+            lnlike0 = -np.inf
 
         else:
 
