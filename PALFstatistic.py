@@ -91,8 +91,8 @@ for p in psr:
 
 Tmax = np.array([p.toas.max() - p.toas.min() for p in psr]).max()
 flow = 1/Tmax
-fhigh = 52/3 * Tmax/3.16e7/2/Tmax
-#fhigh = args.fhigh
+#fhigh = 52/3 * Tmax/3.16e7/2/Tmax
+fhigh = args.fhigh
 
 # set up frequency vector
 if args.logsample:

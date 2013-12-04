@@ -165,6 +165,10 @@ for ct,p in enumerate(pp):
 
 pp = [pp[ii] for ii in index]
 
+# create QSD design matrix
+M = [PALutils.createQSDdesignmatrix(p.toas) for p in psr]
+RQ = [PALutils.createRmatrix(M[ct], p.err) for ct, p in enumerate(psr)]
+
 
 ################## SIMULATED RESIDUALS ########################
 
@@ -181,6 +185,9 @@ if args.gwb:
     print 'Simulating GWB with Amp = {0} and gamma = {1}'.format(args.gwbAmp, args.gwbIndex)
 
     inducedRes = PALutils.createGWB(psr, args.gwbAmp, args.gwbIndex)
+
+    # do quadratic fit
+    inducedRes = [np.dot(RQ[ct], inducedRes[ct]) for ct in range(npsr)]
         
     # add to site arrival times of pulsar
     for ct, p in enumerate(pp):
@@ -198,6 +205,9 @@ if args.DM:
             DMAmp = pfile['Data']['Pulsars'][p.name]['DMAmp'].value
             DMgam = pfile['Data']['Pulsars'][p.name]['DMgam'].value
             inducedRes = np.squeeze(np.array(PALutils.createGWB([p], DMAmp, DMgam, True)))
+            
+            # do quadratic fit
+            inducedRes = np.dot(RQ[ct], inducedRes)
 
             # add to site arrival times of pulsar
             pp[ct].stoas[:] += np.longdouble(inducedRes/86400)
@@ -253,6 +263,9 @@ if args.noise:
 
             # get induced residuals
             inducedRes = np.dot(L, w)
+            
+            # do quadratic fit
+            inducedRes = np.dot(RQ[ct], inducedRes) 
 
             pp[ct].stoas[:] += np.longdouble(inducedRes/86400)
 
@@ -339,6 +352,9 @@ if args.single:
         inducedRes = (PALutils.createResiduals(psr[ct], np.pi/2-args.gwdec, args.gwra, \
                         args.gwchirpmass, args.gwdist, args.gwfreq, args.gwphase, \
                         args.gwpolarization, args.gwinc, psrTerm=pterm))
+
+        # do quadratic fit
+        inducedRes = np.dot(RQ[ct], inducedRes) 
 
         # add to site arrival times of pulsar
         p.stoas[:] += np.longdouble(inducedRes/86400)

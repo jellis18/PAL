@@ -25,7 +25,7 @@ class PTSampler(object):
     @param ndim: number of dimensions in problem
     @param logl: log-likelihood function
     @param logp: log prior function (must be normalized for evidence evaluation)
-    @param cov: Initial covariance matrix for jump proposals
+    @param cov: Initial covariance matrix of model parameters for jump proposals
     @param outDir: Full path to output directory for chain files (default = ./chains)
     @param verbose: Update current run-status to the screen (default=True)
 
