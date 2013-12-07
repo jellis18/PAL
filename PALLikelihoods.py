@@ -50,6 +50,51 @@ def fpStat(psr, f0):
     # return F-statistic
     return fstat
 
+def fpstatAmbiguity(psr, f1, f2):
+    """
+    
+    """
+
+    npsr = len(psr)
+
+    # define N vectors from Ellis et al, 2012 N_i=(x|A_i) for each pulsar
+    M1 = np.zeros((2, 2))
+    M2 = np.zeros((2, 2))
+    M_mixed = np.zeros((2, 2))
+    tmp1 = 0
+    tmp2 = 0
+    for ii,p in enumerate(psr):
+
+        # Define A vector
+        A1 = np.zeros((2, p.ntoa))
+        A1[0,:] = 1./f1**(1./3.) * np.sin(2*np.pi*f1*p.toas)
+        A1[1,:] = 1./f1**(1./3.) * np.cos(2*np.pi*f1*p.toas)
+        
+        A2 = np.zeros((2, p.ntoa))
+        A2[0,:] = 1./f2**(1./3.) * np.sin(2*np.pi*f2*p.toas)
+        A2[1,:] = 1./f2**(1./3.) * np.cos(2*np.pi*f2*p.toas)
+
+        # define M matrix M_ij=(A_i|A_j)
+        for jj in range(2):
+            for kk in range(2):
+                M1[jj,kk] = np.dot(A1[jj,:], np.dot(p.invCov, A1[kk,:]))
+                M2[jj,kk] = np.dot(A2[jj,:], np.dot(p.invCov, A2[kk,:]))
+                M_mixed[jj,kk] = np.dot(A1[jj,:], np.dot(p.invCov, A2[kk,:]))
+        
+        # take inverse of M
+        Minv1 = np.linalg.inv(M1)
+        Minv2 = np.linalg.inv(M2)
+
+        tmp1 += np.dot(Minv1, M_mixed)
+        tmp2 += np.dot(Minv2, M_mixed)
+
+    amb = np.trace(np.dot(tmp1, tmp2))
+    
+    return amb - (2*npsr)**2 
+
+
+
+
 def marginalizedPulsarPhaseLike(psr, theta, phi, phase, inc, psi, freq, h, maximize=False):
     """ 
     Compute the log-likelihood marginalized over pulsar phases

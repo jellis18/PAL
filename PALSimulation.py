@@ -347,6 +347,7 @@ if args.single:
         print 'Scaled GW distance = {0} for SNR = {1}'.format(args.gwdist, args.snr)
     
     # make residuals
+    snr = np.zeros(npsr)
     for ct, p in enumerate(pp):
 
         inducedRes = (PALutils.createResiduals(psr[ct], np.pi/2-args.gwdec, args.gwra, \
@@ -358,6 +359,10 @@ if args.single:
 
         # add to site arrival times of pulsar
         p.stoas[:] += np.longdouble(inducedRes/86400)
+
+        snr[ct] = PALutils.calculateMatchedFilterSNR(psr[ct], inducedRes, inducedRes)**2
+        print 'Pulsar {0} contributes {1}% to SNR'.format(psr[ct].name, snr[ct]/args.snr**2*100)
+
 
 # refit
 for p in pp:

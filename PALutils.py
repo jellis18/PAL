@@ -23,11 +23,14 @@ def createAntennaPatternFuncs(psr, gwtheta, gwphi):
     """
 
     # use definition from Sesana et al 2010 and Ellis et al 2012
-    m = [-np.sin(gwphi), np.cos(gwphi), 0.0]
-    n = [-np.cos(gwtheta)*np.cos(gwphi), -np.cos(gwtheta)*np.sin(gwphi), np.sin(gwtheta)]
-    omhat = [-np.sin(gwtheta)*np.cos(gwphi), -np.sin(gwtheta)*np.sin(gwphi), -np.cos(gwtheta)]
+    m = np.array([-np.sin(gwphi), np.cos(gwphi), 0.0])
+    n = np.array([-np.cos(gwtheta)*np.cos(gwphi), -np.cos(gwtheta)*np.sin(gwphi),\
+                  np.sin(gwtheta)])
+    omhat = np.array([-np.sin(gwtheta)*np.cos(gwphi), -np.sin(gwtheta)*np.sin(gwphi),\
+                      -np.cos(gwtheta)])
 
-    phat = [np.sin(psr.theta)*np.cos(psr.phi), np.sin(psr.theta)*np.sin(psr.phi), np.cos(psr.theta)]
+    phat = np.array([np.sin(psr.theta)*np.cos(psr.phi), np.sin(psr.theta)*np.sin(psr.phi), \
+                     np.cos(psr.theta)])
 
     fplus = 0.5 * (np.dot(m, phat)**2 - np.dot(n, phat)**2) / (1+np.dot(omhat, phat))
     fcross = (np.dot(m, phat)*np.dot(n, phat)) / (1 + np.dot(omhat, phat))
@@ -182,9 +185,9 @@ def createResidualsFast(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pd
     incfac1, incfac2 = -0.5*(3+np.cos(2*inc)), 2*np.cos(inc)
 
     # unit vectors to GW source
-    m = [-singwphi, cosgwphi, 0.0]
-    n = [-cosgwtheta*cosgwphi, -cosgwtheta*singwphi, singwtheta]
-    omhat = [-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta]
+    m = np.array([-singwphi, cosgwphi, 0.0])
+    n = np.array([-cosgwtheta*cosgwphi, -cosgwtheta*singwphi, singwtheta])
+    omhat = np.array([-singwtheta*cosgwphi, -singwtheta*singwphi, -cosgwtheta])
 
     # various factors invloving GW parameters
     fac1 = 256/5 * mc**(5/3) * w0**(8/3) 
@@ -195,8 +198,8 @@ def createResidualsFast(psr, gwtheta, gwphi, mc, dist, fgw, phase0, psi, inc, pd
     for ct, p in enumerate(psr):
 
         # use definition from Sesana et al 2010 and Ellis et al 2012
-        phat = [np.sin(p.theta)*np.cos(p.phi), np.sin(p.theta)*np.sin(p.phi),\
-                np.cos(p.theta)]
+        phat = np.array([np.sin(p.theta)*np.cos(p.phi), np.sin(p.theta)*np.sin(p.phi),\
+                np.cos(p.theta)])
 
         fplus = 0.5 * (np.dot(m, phat)**2 - np.dot(n, phat)**2) / (1+np.dot(omhat, phat))
         fcross = (np.dot(m, phat)*np.dot(n, phat)) / (1 + np.dot(omhat, phat))
@@ -301,7 +304,7 @@ def computeLuminosityDistance(z):
     properDistance = lambda z: c/H0*np.sqrt(Ol+Om*(1+z)**3)
     
     # carry out numerical integration
-    Dp = si.quadrature(properDistance, 0 ,z)[0]
+    Dp = si.quad(properDistance, 0 ,z)[0]
     Dl = (1+z) * Dp
 
     return Dl
