@@ -188,9 +188,9 @@ def makesubplot1d(ax, samples, weights=None, interpolate=False, smooth=True,\
     """
 
     if range is None:
-        hist, xedges = np.histogram(samples, bins, normed=True)
+        hist, xedges = np.histogram(samples, bins, normed=True, weights=weights)
     else:
-        hist, xedges = np.histogram(samples, bins, normed=True, range=range)
+        hist, xedges = np.histogram(samples, bins, normed=True, range=range, weights=weights)
 
     xedges = np.delete(xedges, -1) + 0.5*(xedges[1] - xedges[0])
 
