@@ -301,7 +301,7 @@ def computeLuminosityDistance(z):
     c = 3.0e8           # Speed of light in SI units
 
     # proper distance function
-    properDistance = lambda z: c/H0*np.sqrt(Ol+Om*(1+z)**3)
+    properDistance = lambda z: c/H0/np.sqrt(Ol+Om*(1+z)**3)
     
     # carry out numerical integration
     Dp = si.quad(properDistance, 0 ,z)[0]
