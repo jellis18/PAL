@@ -900,7 +900,7 @@ def createfourierdesignmatrix(t, nmodes, freq=False, Tspan=None):
     else:
         return F
 
-def createGWB(psr, Amp, gam, DM=False):
+def createGWB(psr, Amp, gam, DM=False, noCorr=False):
     """
     Function to create GW incuced residuals from a stochastic GWB as defined
     in Chamberlin, Creighton, Demorest et al. (2013)
@@ -909,6 +909,7 @@ def createGWB(psr, Amp, gam, DM=False):
     @param Amp: Amplitude of red noise in GW units
     @param gam: Red noise power law spectral index
     @param DM: Add time varying DM as a power law (only valid for single pulsars)
+    @param noCorr: Add red noise with no spatial correlations
     
     @return: Vector of induced residuals
     
@@ -941,7 +942,10 @@ def createGWB(psr, Amp, gam, DM=False):
     dt = dur/npts
 
     # compute the overlap reduction function
-    ORF = computeORFMatrix(psr)
+    if noCorr:
+        ORF = np.diag(np.ones(Npulsars)*2)
+    else:
+        ORF = computeORFMatrix(psr)
 
     # define frequencies spanning from DC to Nyquist. This is a vector spanning these frequencies in increments of 1/(dur*howml).
     f=np.arange(0, 1./(2.*dt), 1./(dur*howml))
