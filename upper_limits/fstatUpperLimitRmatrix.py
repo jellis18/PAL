@@ -35,6 +35,8 @@ parser.add_argument('--best', dest='best', action='store', type=int, default=0,
                    help='Only use best pulsars based on weighted rms (default = 0, use all)')
 parser.add_argument('--dist', dest='dist', action='store', type=float, default=None,
                    help='Luminosity distance at which to compute upper limit (default = None)')
+parser.add_argument('--pulsar', dest='pulsar', action='store', type=str, default=None,
+                   help='Use a single pulsar (default=None)')
 
 
 # parse arguments
@@ -61,6 +63,12 @@ if args.best != 0:
     for p in psr:
         print 'Pulsar {0} has {1} ns weighted rms'.format(p.name,p.rms()*1e9)
 
+if args.pulsar:
+
+    psr = [p for p in psr if p.name == args.pulsar]
+    print 'Using pulsar {0}'.format(psr[0].name)
+
+
 # number of pulsars
 npsr = len(psr)
 
@@ -81,6 +89,15 @@ res = [p.res for p in psr]
 
 # get list of R matrices
 R = [PALutils.createRmatrix(p.dmatrix, p.err) for p in psr]
+M = [PALutils.createQSDdesignmatrix(p.toas) for p in psr]
+#ind = np.concatenate((np.arange(0,16),np.arange(16, 45)))
+ind = np.arange(0,8)
+#M = [p.dmatrix[:,ind] for p in psr]
+R = [PALutils.createRmatrix(M[ct], p.err) for ct, p in enumerate(psr)]
+for ct, p in enumerate(psr):
+    p.G = PALutils.createGmatrix(M[ct])
+
+
 
 L = []
 for ct, p in enumerate(psr):
@@ -114,6 +131,13 @@ for ct, p in enumerate(psr):
     red = np.dot(F, np.dot(phi, F.T))
     
     cov = white + red + cequad_mat
+
+    ##############################
+    #cov = PALutils.createWhiteNoiseCovarianceMatrix(p.err, efac**2, 0)
+    tmp = np.dot(p.G.T, np.dot(cov, p.G))
+    p.invCov = np.dot(p.G, np.dot(np.linalg.inv(tmp), p.G.T))
+    print p.name, np.dot(p.res, np.dot(p.invCov, p.res))/(p.ntoa-p.nfit)
+
 
     L.append(np.linalg.cholesky(cov))
 
@@ -214,7 +238,7 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
 
 # now compute bound with scalar minimization function using Brent's method
 hhigh = 1e-13
-hlow = 1e-40
+hlow = 1e-16
 xtol = 1e-16
 freq = args.freq
 nreal = args.nreal
