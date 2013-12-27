@@ -89,15 +89,6 @@ res = [p.res for p in psr]
 
 # get list of R matrices
 R = [PALutils.createRmatrix(p.dmatrix, p.err) for p in psr]
-M = [PALutils.createQSDdesignmatrix(p.toas) for p in psr]
-#ind = np.concatenate((np.arange(0,16),np.arange(16, 45)))
-ind = np.arange(0,8)
-#M = [p.dmatrix[:,ind] for p in psr]
-R = [PALutils.createRmatrix(M[ct], p.err) for ct, p in enumerate(psr)]
-for ct, p in enumerate(psr):
-    p.G = PALutils.createGmatrix(M[ct])
-
-
 
 L = []
 for ct, p in enumerate(psr):
@@ -133,7 +124,6 @@ for ct, p in enumerate(psr):
     cov = white + red + cequad_mat
 
     ##############################
-    #cov = PALutils.createWhiteNoiseCovarianceMatrix(p.err, efac**2, 0)
     tmp = np.dot(p.G.T, np.dot(cov, p.G))
     p.invCov = np.dot(p.G, np.dot(np.linalg.inv(tmp), p.G.T))
     print p.name, np.dot(p.res, np.dot(p.invCov, p.res))/(p.ntoa-p.nfit)
@@ -178,13 +168,6 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
             if tcoal > Tmaxyr:
                 coal = False
         
-        #gwtheta = np.pi/2
-        #gwphi = np.pi/2
-        #gwphase = np.pi/2
-        #gwinc = np.pi/2
-        #gwpsi = np.pi/2
-        #gwmc = 1e8
-
         # determine distance in order to keep strain fixed
         gwdist = 4 * np.sqrt(2/5) * (gwmc*4.9e-6)**(5/3) * (np.pi*freq)**(2/3) / h
 
@@ -209,7 +192,6 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
             # replace residuals in pulsar object
             noise = np.dot(L[ct], np.random.randn(L[ct].shape[0]))
             p.res = np.dot(R[ct], noise+inducedRes)
-            #p.res = res[ct] + np.dot(R[ct], inducedRes)
 
         # compute f-statistic
         fpstat = PALLikelihoods.fpStat(psr, freq)
