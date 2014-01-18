@@ -294,6 +294,7 @@ class PTSampler(object):
 
                     # perform swap
                     if swapAccepted:
+                        self.nswap_accepted += 1
 
                         # exchange likelihood
                         self.comm.send(lnlike0, dest=self.MPIrank-1)

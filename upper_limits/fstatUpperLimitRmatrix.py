@@ -35,6 +35,8 @@ parser.add_argument('--best', dest='best', action='store', type=int, default=0,
                    help='Only use best pulsars based on weighted rms (default = 0, use all)')
 parser.add_argument('--dist', dest='dist', action='store', type=float, default=None,
                    help='Luminosity distance at which to compute upper limit (default = None)')
+parser.add_argument('--pulsar', dest='pulsar', action='store', type=str, default=None,
+                   help='Use a single pulsar (default=None)')
 
 
 # parse arguments
@@ -60,6 +62,12 @@ if args.best != 0:
 
     for p in psr:
         print 'Pulsar {0} has {1} ns weighted rms'.format(p.name,p.rms()*1e9)
+
+if args.pulsar:
+
+    psr = [p for p in psr if p.name == args.pulsar]
+    print 'Using pulsar {0}'.format(psr[0].name)
+
 
 # number of pulsars
 npsr = len(psr)
@@ -115,6 +123,12 @@ for ct, p in enumerate(psr):
     
     cov = white + red + cequad_mat
 
+    ##############################
+    tmp = np.dot(p.G.T, np.dot(cov, p.G))
+    p.invCov = np.dot(p.G, np.dot(np.linalg.inv(tmp), p.G.T))
+    print p.name, np.dot(p.res, np.dot(p.invCov, p.res))/(p.ntoa-p.nfit)
+
+
     L.append(np.linalg.cholesky(cov))
 
 
@@ -154,13 +168,6 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
             if tcoal > Tmaxyr:
                 coal = False
         
-        #gwtheta = np.pi/2
-        #gwphi = np.pi/2
-        #gwphase = np.pi/2
-        #gwinc = np.pi/2
-        #gwpsi = np.pi/2
-        #gwmc = 1e8
-
         # determine distance in order to keep strain fixed
         gwdist = 4 * np.sqrt(2/5) * (gwmc*4.9e-6)**(5/3) * (np.pi*freq)**(2/3) / h
 
@@ -185,7 +192,6 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
             # replace residuals in pulsar object
             noise = np.dot(L[ct], np.random.randn(L[ct].shape[0]))
             p.res = np.dot(R[ct], noise+inducedRes)
-            #p.res = res[ct] + np.dot(R[ct], inducedRes)
 
         # compute f-statistic
         fpstat = PALLikelihoods.fpStat(psr, freq)
@@ -214,7 +220,7 @@ def upperLimitFunc(h, fstat_ref, freq, nreal, theta=None, phi=None, detect=False
 
 # now compute bound with scalar minimization function using Brent's method
 hhigh = 1e-13
-hlow = 1e-40
+hlow = 1e-16
 xtol = 1e-16
 freq = args.freq
 nreal = args.nreal
